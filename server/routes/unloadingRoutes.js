@@ -73,14 +73,14 @@ router.post(
 // @access  Private (employee gets own, manager gets all)
 router.get('/', auth, async (req, res) => {
   try {
-    const { page = 1, limit = 20, invoiceNumber, date } = req.query;
+    const { page = 1, limit = 15, invoiceNumber, startDate, endDate, scope } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     // Build query
     const query = {};
 
-    // Employees can only see their own records
-    if (req.user.role === 'employee') {
+    // By default, employees see their own. If scope=all, they see all (as requested)
+    if (req.user.role === 'employee' && scope !== 'all') {
       query.employee = req.user.id;
     }
 
@@ -88,12 +88,18 @@ router.get('/', auth, async (req, res) => {
       query.invoiceNumber = { $regex: invoiceNumber, $options: 'i' };
     }
 
-    if (date) {
-      const dayStart = new Date(date);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(date);
-      dayEnd.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: dayStart, $lte: dayEnd };
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
     }
 
     const [records, total] = await Promise.all([
@@ -159,6 +165,77 @@ router.get('/:id', auth, async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+});
+
+// @route   PUT /api/unloading/:id
+// @desc    Update a single unloading record
+// @access  Private
+router.put('/:id', auth, upload.array('images', 10), async (req, res) => {
+  try {
+    const record = await UnloadingRecord.findById(req.params.id);
+
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Record not found.' });
+    }
+
+    // Role check: Only the owner (employee) or manager can update
+    if (req.user.role === 'employee' && record.employee._id.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to update this record.' });
+    }
+
+    // Parse parts if it's a JSON string
+    if (req.body.parts && typeof req.body.parts === 'string') {
+      try {
+        req.body.parts = JSON.parse(req.body.parts);
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid parts data format. Must be a valid JSON array.',
+        });
+      }
+    }
+
+    // Process new images if any are uploaded
+    if (req.files && req.files.length > 0) {
+      const imagePaths = req.files.map((file) => `/uploads/parts/${file.filename}`);
+      req.body.images = imagePaths;
+    }
+
+    // Update fields
+    const updatedRecord = await UnloadingRecord.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({ success: true, data: updatedRecord });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   DELETE /api/unloading/:id
+// @desc    Delete a single unloading record
+// @access  Private
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const record = await UnloadingRecord.findById(req.params.id);
+
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Record not found.' });
+    }
+
+    // Role check: Only the owner (employee) or manager can delete
+    if (req.user.role === 'employee' && record.employee._id.toString() !== req.user.id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this record.' });
+    }
+
+    await record.deleteOne();
+
+    res.status(200).json({ success: true, message: 'Record removed successfully.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

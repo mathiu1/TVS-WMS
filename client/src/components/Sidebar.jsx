@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Globe,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -29,12 +30,13 @@ const Sidebar = () => {
 
   const employeeLinks = [
     { to: '/unloading', icon: PackagePlus, label: 'Unloading' },
-    { to: '/records', icon: ClipboardList, label: 'Records' },
+    { to: '/my-records', icon: ClipboardList, label: 'My Records' },
+    { to: '/all-records', icon: Globe, label: 'All Records' },
   ];
 
   const managerLinks = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/records', icon: ClipboardList, label: 'Records' },
+    { to: '/all-records', icon: Globe, label: 'All Records' },
     { to: '/employee-reports', icon: Users, label: 'Employee Reports' },
   ];
 

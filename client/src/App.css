@@ -19,6 +19,7 @@
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.04);
   transition: width var(--transition-smooth);
   overflow: hidden;
+  /* Prevent the entire sidebar from scrolling */
 }
 
 .sidebar.collapsed {
@@ -84,6 +85,18 @@
   flex-direction: column;
   gap: 0.25rem;
   overflow-y: auto;
+  /* Allow ONLY the nav links to scroll */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide scrollbar for cleaner look in sidebar-nav */
+.sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
 }
 
 .sidebar-link {
@@ -138,6 +151,9 @@
 .sidebar-footer {
   padding: 0.75rem;
   border-top: 1px solid var(--glass-border);
+  background: #ffffff;
+  /* Ensure footer stays opaque over scrolling content */
+  flex-shrink: 0;
 }
 
 .sidebar-user {
@@ -242,7 +258,13 @@
   transition: margin-left var(--transition-smooth);
 }
 
-.sidebar.collapsed ~ .main-content,
+.full-content {
+  flex: 1;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.sidebar.collapsed~.main-content,
 .app-layout:has(.sidebar.collapsed) .main-content {
   margin-left: 72px;
 }
@@ -273,9 +295,10 @@
 .records-filters {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
+  /* Ensure filters can wrap on smaller screens */
 }
 
 .filter-search {
@@ -320,8 +343,15 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .page-header {
@@ -372,8 +402,15 @@
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(24px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .auth-header {
@@ -454,8 +491,8 @@
   box-shadow: 0 0 0 3px var(--accent-blue-glow);
 }
 
-.input-group input:focus + .input-icon,
-.input-group input:focus ~ .input-icon {
+.input-group input:focus+.input-icon,
+.input-group input:focus~.input-icon {
   color: var(--accent-blue);
 }
 
@@ -549,7 +586,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .btn-icon {
@@ -591,8 +630,15 @@
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .alert-error {
@@ -669,6 +715,40 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.parts-list-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: -0.25rem;
+}
+
+.col-index {
+  width: 28px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.col-part {
+  flex: 1;
+  padding-left: 0.75rem;
+}
+
+.col-qty {
+  width: 80px;
+  text-align: center;
+}
+
+.col-action {
+  width: 32px;
+  flex-shrink: 0;
 }
 
 .part-row {
@@ -1313,8 +1393,15 @@
 }
 
 @keyframes lightboxZoomIn {
-  from { opacity: 0; transform: scale(0.85); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .lightbox-nav {
@@ -1541,8 +1628,15 @@
 }
 
 @keyframes slideDown {
-  from { opacity: 0; max-height: 0; }
-  to { opacity: 1; max-height: 800px; }
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+
+  to {
+    opacity: 1;
+    max-height: 800px;
+  }
 }
 
 .employee-meta {
@@ -1627,6 +1721,7 @@
 
 /* ----- TABLET PORTRAIT (≤ 768px) ----- */
 @media (max-width: 768px) {
+
   /* Sidebar — off-canvas on mobile */
   .sidebar {
     transform: translateX(-100%);
@@ -1637,6 +1732,11 @@
   .sidebar.mobile-open {
     transform: translateX(0);
     box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+    height: 100dvh;
+    /* Force exact device height */
+    bottom: 0;
+    overflow: hidden;
+    /* Lock the main sidebar container */
   }
 
   .sidebar-collapse-btn {
@@ -1853,6 +1953,28 @@
     flex: 1;
   }
 
+  /* Records Filters Wrapping */
+  .records-filters {
+    gap: 0.75rem;
+  }
+
+  .filter-search {
+    flex: 1 1 100%;
+  }
+
+  .custom-date-filters {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+
+  .custom-date-filters .filter-date {
+    flex: 1 1 calc(50% - 1.5rem);
+  }
+
+  .btn-clear-filters {
+    flex: 1 1 100%;
+  }
+
   /* Modal */
   .modal-overlay {
     padding: 1rem;
@@ -1867,8 +1989,15 @@
   }
 
   @keyframes slideUpMobile {
-    from { opacity: 0; transform: translateY(100%); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   .modal-images {
@@ -2060,6 +2189,21 @@
     height: 46px;
     font-size: 0.7rem;
     flex-shrink: 0;
+  }
+
+  /* Ensure date filters collapse gracefully on very small phones */
+  .custom-date-filters {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+  }
+
+  .custom-date-filters .text-muted {
+    display: none;
+  }
+
+  .custom-date-filters .filter-date {
+    flex: 1 1 100%;
   }
 
   /* Table — card layout on mobile */
@@ -2491,6 +2635,7 @@
 
 /* ----- TOUCH DEVICE OPTIMIZATIONS ----- */
 @media (hover: none) and (pointer: coarse) {
+
   /* Disable hover transforms on touch devices */
   .summary-card:hover,
   .record-card:hover,
@@ -2595,6 +2740,7 @@
 
 /* ----- PRINT STYLES ----- */
 @media print {
+
   .sidebar,
   .sidebar-mobile-toggle,
   .sidebar-overlay,

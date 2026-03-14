@@ -15,14 +15,19 @@ import toast from 'react-hot-toast';
 
 const emptyPart = { partNumber: '', quantity: 1 };
 
-const UnloadingForm = () => {
+const UnloadingForm = ({ editData = null, onSuccess = null }) => {
   const [form, setForm] = useState({
-    invoiceNumber: '',
-    locationName: '',
+    invoiceNumber: editData?.invoiceNumber || '',
+    locationName: editData?.locationName || '',
   });
-  const [parts, setParts] = useState([{ ...emptyPart }]);
+  const [parts, setParts] = useState(editData?.parts || [{ ...emptyPart }]);
+  
+  // For edit mode, we pre-fill previews with existing images, 
+  // but if new images are selected, we know it's a replacement.
   const [images, setImages] = useState([]);
-  const [previews, setPreviews] = useState([]);
+  const [previews, setPreviews] = useState(
+    editData?.images ? editData.images.map((url) => ({ name: 'existing', url })) : []
+  );
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -75,6 +80,13 @@ const UnloadingForm = () => {
   };
 
   const removeImage = (index) => {
+    // If it's an existing image (from editMode), we just remove it from previews.
+    // The backend won't keep it unless it's sent, but currently the API expects all new images if updated.
+    // For simplicity, if they remove ANY image in edit mode, they must re-upload what they want.
+    if (previews[index]?.name === 'existing') {
+        toast('In edit mode, removing an image requires you to re-upload all proof images.', { icon: 'ℹ️' });
+    }
+    
     setImages(images.filter((_, i) => i !== index));
     setPreviews(previews.filter((_, i) => i !== index));
   };
@@ -83,9 +95,14 @@ const UnloadingForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (images.length === 0) {
+    if (!editData && images.length === 0) {
       toast.error('Please upload at least one proof image.');
       return;
+    }
+    // In edit mode, if no NEW images are uploaded, and they haven't cleared the existing ones, we let it pass.
+    if (editData && images.length === 0 && previews.length === 0) {
+        toast.error('Please upload at least one proof image.');
+        return;
     }
 
     setLoading(true);
@@ -97,22 +114,28 @@ const UnloadingForm = () => {
       formData.append('locationName', form.locationName);
       formData.append('parts', JSON.stringify(parts));
 
-      images.forEach((img) => {
-        formData.append('images', img);
-      });
+      if (images.length > 0) {
+        images.forEach((img) => {
+          formData.append('images', img);
+        });
+      }
 
-      await unloadingAPI.create(formData);
-
-      toast.success('Unloading record submitted successfully!');
-      setSuccess(true);
-
-      // Reset form
-      setForm({ invoiceNumber: '', locationName: '' });
-      setParts([{ ...emptyPart }]);
-      setImages([]);
-      setPreviews([]);
-
-      setTimeout(() => setSuccess(false), 3000);
+      if (editData) {
+        // Only send images if they actually uploaded new ones. 
+        // Our backend expects images to be replaced entirely if the 'images' field is present.
+        await unloadingAPI.update(editData._id, formData);
+        toast.success('Unloading record updated successfully!');
+        if (onSuccess) onSuccess();
+      } else {
+        await unloadingAPI.create(formData);
+        toast.success('Unloading record submitted successfully!');
+        setSuccess(true);
+        setForm({ invoiceNumber: '', locationName: '' });
+        setParts([{ ...emptyPart }]);
+        setImages([]);
+        setPreviews([]);
+        setTimeout(() => setSuccess(false), 3000);
+      }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to submit record.';
       toast.error(msg);
@@ -122,14 +145,16 @@ const UnloadingForm = () => {
   };
 
   return (
-    <div className="page-container">
-      <div className="page-header">
-        <PackagePlus size={28} />
-        <div>
-          <h1>Vehicle Unloading</h1>
-          <p>Record parts received from vendor vehicle</p>
+    <div className={editData ? '' : 'page-container'}>
+      {!editData && (
+        <div className="page-header">
+          <PackagePlus size={28} />
+          <div>
+            <h1>Vehicle Unloading</h1>
+            <p>Record parts received from vendor vehicle</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {success && (
         <div className="alert alert-success">
@@ -186,6 +211,12 @@ const UnloadingForm = () => {
           </div>
 
           <div className="parts-list">
+            <div className="parts-list-header">
+              <span className="col-index">#</span>
+              <span className="col-part">Part Number *</span>
+              <span className="col-qty">Quantity *</span>
+              <span className="col-action"></span>
+            </div>
             {parts.map((part, index) => (
               <div key={index} className="part-row">
                 <span className="part-index">{index + 1}</span>
@@ -261,17 +292,16 @@ const UnloadingForm = () => {
 
         {/* Submit */}
         <button
-          id="submit-unloading"
           type="submit"
-          className="btn btn-primary btn-full btn-lg"
-          disabled={loading}
+          className="btn btn-primary submit-btn"
+          disabled={loading || parts.some((p) => !p.partNumber || p.quantity < 1)}
         >
           {loading ? (
-            <span className="btn-loading">Submitting Record...</span>
+            <div className="loader-spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }} />
           ) : (
             <>
               <CheckCircle size={20} />
-              Submit Unloading Record
+              {editData ? 'Save Changes' : 'Submit Unloading Record'}
             </>
           )}
         </button>

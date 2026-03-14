@@ -19,65 +19,83 @@ const HomeRedirect = () => {
   return <Navigate to="/unloading" replace />;
 };
 
+const AppContent = () => {
+  const { isAuthenticated } = useAuth();
+
+  return (
+    <>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: '#ffffff',
+            color: '#1e293b',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+          },
+        }}
+      />
+      <div className="app-layout">
+        <Sidebar />
+        <main className={isAuthenticated ? 'main-content' : 'full-content'}>
+          <Routes>
+            <Route path="/" element={<HomeRedirect />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route
+              path="/unloading"
+              element={
+                <ProtectedRoute allowedRoles={['employee']}>
+                  <UnloadingForm />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute allowedRoles={['manager']}>
+                  <ManagerDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/my-records"
+              element={
+                <ProtectedRoute allowedRoles={['employee']}>
+                  <Records scope="me" title="My Records" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/all-records"
+              element={
+                <ProtectedRoute allowedRoles={['employee', 'manager']}>
+                  <Records scope="all" title="All Records" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee-reports"
+              element={
+                <ProtectedRoute allowedRoles={['manager']}>
+                  <EmployeeReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </>
+  );
+};
+
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 3000,
-            style: {
-              background: '#ffffff',
-              color: '#1e293b',
-              border: '1px solid rgba(0, 0, 0, 0.08)',
-              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
-            },
-          }}
-        />
-        <div className="app-layout">
-          <Sidebar />
-          <main className="main-content">
-            <Routes>
-              <Route path="/" element={<HomeRedirect />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route
-                path="/unloading"
-                element={
-                  <ProtectedRoute allowedRoles={['employee']}>
-                    <UnloadingForm />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute allowedRoles={['manager']}>
-                    <ManagerDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/records"
-                element={
-                  <ProtectedRoute allowedRoles={['employee', 'manager']}>
-                    <Records />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/employee-reports"
-                element={
-                  <ProtectedRoute allowedRoles={['manager']}>
-                    <EmployeeReports />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </main>
-        </div>
+        <AppContent />
       </AuthProvider>
     </BrowserRouter>
   );

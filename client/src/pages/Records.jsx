@@ -7,19 +7,25 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Calendar,
   MapPin,
   FileText,
+  Edit,
+  Trash2,
+  Calendar,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import UnloadingForm from './UnloadingForm';
 
-const Records = () => {
+const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   const [records, setRecords] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [editRecord, setEditRecord] = useState(null);
+  const [deleteConfirmRecord, setDeleteConfirmRecord] = useState(null);
   const [lightbox, setLightbox] = useState({ open: false, images: [], index: 0 });
 
   const openLightbox = (images, index) => {
@@ -46,13 +52,14 @@ const Records = () => {
 
   useEffect(() => {
     fetchRecords();
-  }, [dateFilter, searchFilter, pagination.page]);
+  }, [startDate, endDate, searchFilter, pagination.page, scope]);
 
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const params = { page: pagination.page, limit: 12 };
-      if (dateFilter) params.date = dateFilter;
+      const params = { page: pagination.page, limit: 15, scope };
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
       if (searchFilter) params.invoiceNumber = searchFilter;
 
       const res = await unloadingAPI.getAll(params);
@@ -69,6 +76,43 @@ const Records = () => {
     setPagination((prev) => ({ ...prev, page: newPage }));
   };
 
+  const handleDelete = (id) => {
+    setDeleteConfirmRecord(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirmRecord) return;
+    try {
+      await unloadingAPI.delete(deleteConfirmRecord);
+      toast.success('Record deleted successfully');
+      setRecords(records.filter((r) => r._id !== deleteConfirmRecord));
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete record');
+    } finally {
+      setDeleteConfirmRecord(null);
+    }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await unloadingAPI.update(editRecord._id, {
+        invoiceNumber: editRecord.invoiceNumber,
+        locationName: editRecord.locationName,
+      });
+      toast.success('Record updated successfully');
+      setRecords(records.map((r) => (r._id === editRecord._id ? res.data.data : r)));
+      setEditRecord(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update record');
+    }
+  };
+
+  const handleEditSuccess = () => {
+    setEditRecord(null);
+    fetchRecords();
+  };
+
   if (loading && records.length === 0) {
     return (
       <div className="loader-container">
@@ -83,8 +127,8 @@ const Records = () => {
       <div className="page-header">
         <ClipboardList size={28} />
         <div>
-          <h1>Unloading Records</h1>
-          <p>Browse all vehicle unloading records with proof images</p>
+          <h1>{title}</h1>
+          <p>Browse unloading records with proof images</p>
         </div>
       </div>
 
@@ -103,22 +147,40 @@ const Records = () => {
             }}
           />
         </div>
-        <div className="input-group filter-date">
-          <Calendar size={18} className="input-icon" />
-          <input
-            id="filter-date"
-            type="date"
-            value={dateFilter}
-            onChange={(e) => {
-              setDateFilter(e.target.value);
-              setPagination((p) => ({ ...p, page: 1 }));
-            }}
-          />
+        <div className="custom-date-filters" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="input-group filter-date">
+            <Calendar size={18} className="input-icon" />
+            <input
+              id="start-date"
+              type="date"
+              value={startDate}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              title="Start Date"
+            />
+          </div>
+          <span className="text-muted" style={{ fontSize: '0.8rem' }}>to</span>
+          <div className="input-group filter-date">
+            <Calendar size={18} className="input-icon" />
+            <input
+              id="end-date"
+              type="date"
+              value={endDate}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              title="End Date"
+            />
+          </div>
         </div>
-        {(dateFilter || searchFilter) && (
+        {(startDate || endDate || searchFilter) && (
           <button
             onClick={() => {
-              setDateFilter('');
+              setStartDate('');
+              setEndDate('');
               setSearchFilter('');
               setPagination((p) => ({ ...p, page: 1 }));
             }}
@@ -195,6 +257,22 @@ const Records = () => {
                 >
                   <Eye size={14} /> View Details
                 </button>
+                {scope === 'me' && (
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      className="btn btn-sm btn-secondary btn-full"
+                      onClick={() => setEditRecord(record)}
+                    >
+                      <Edit size={14} /> Edit
+                    </button>
+                    <button
+                      className="btn btn-sm btn-danger btn-full"
+                      onClick={() => handleDelete(record._id)}
+                    >
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -222,6 +300,59 @@ const Records = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Edit Modal */}
+      {editRecord && (
+        <div className="modal-overlay" onClick={() => setEditRecord(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Edit Record #{editRecord.invoiceNumber}</h3>
+              <button className="btn-icon" onClick={() => setEditRecord(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: 0 }}>
+              <UnloadingForm editData={editRecord} onSuccess={handleEditSuccess} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmRecord && (
+        <div className="modal-overlay" onClick={() => setDeleteConfirmRecord(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px', textAlign: 'center' }}>
+            <div className="modal-header" style={{ borderBottom: 'none', paddingBottom: 0, justifyContent: 'center' }}>
+              <button className="btn-icon" onClick={() => setDeleteConfirmRecord(null)} style={{ position: 'absolute', right: '1rem', top: '1rem' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: '1.5rem' }}>
+                <Trash2 size={48} color="#ef4444" style={{ margin: '0 auto', marginBottom: '1rem' }} />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.5rem' }}>Delete Record</h3>
+                <p style={{ color: '#64748b' }}>Are you sure you want to delete this record? This action cannot be undone.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setDeleteConfirmRecord(null)}
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-danger" 
+                  onClick={confirmDelete}
+                  style={{ flex: 1 }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Detail Modal */}

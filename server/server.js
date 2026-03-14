@@ -17,7 +17,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000',"https://tvs-wms.onrender.com"],
+  origin: ['http://localhost:5173', 'http://localhost:3000', "https://tvs-wms.onrender.com"],
   credentials: true,
 }));
 app.use(express.json());

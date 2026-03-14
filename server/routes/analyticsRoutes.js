@@ -46,7 +46,7 @@ router.get('/daily-report', auth, authorize('manager'), async (req, res) => {
       // Stage 3: Lookup employee details
       {
         $lookup: {
-          from: 'users',
+          from: 'tvs_users',
           localField: '_id.employeeId',
           foreignField: '_id',
           as: 'employeeInfo',
@@ -198,7 +198,7 @@ router.get('/employee-reports', auth, authorize('manager'), async (req, res) => 
       // Lookup employee details
       {
         $lookup: {
-          from: 'users',
+          from: 'tvs_users',
           localField: '_id',
           foreignField: '_id',
           as: 'employee',

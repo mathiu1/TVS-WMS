@@ -50,6 +50,8 @@ export const unloadingAPI = {
     }),
   getAll: (params) => API.get('/unloading', { params }),
   getById: (id) => API.get(`/unloading/${id}`),
+  update: (id, data) => API.put(`/unloading/${id}`, data),
+  delete: (id) => API.delete(`/unloading/${id}`),
 };
 
 // ===== ANALYTICS API =====
