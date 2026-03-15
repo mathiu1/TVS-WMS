@@ -1,24 +1,21 @@
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+require('dotenv').config();
 
-// Ensure upload directory exists
-const uploadDir = path.join(__dirname, '..', 'uploads', 'parts');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME?.trim().replace(/['"]/g, ''),
+  api_key: process.env.CLOUDINARY_API_KEY?.trim().replace(/['"]/g, ''),
+  api_secret: process.env.CLOUDINARY_API_SECRET?.trim().replace(/['"]/g, ''),
+});
 
-// Configure storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const invoiceNumber = req.body.invoiceNumber || 'unknown';
-    const sanitized = invoiceNumber.replace(/[^a-zA-Z0-9-_]/g, '_');
-    const ext = path.extname(file.originalname).toLowerCase();
-    const filename = `${sanitized}-${Date.now()}${ext}`;
-    cb(null, filename);
+// Configure Cloudinary Storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'tvs-wms',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
   },
 });
 
@@ -34,7 +31,6 @@ const fileFilter = (req, file, cb) => {
 
 const upload = multer({
   storage,
-  fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5 MB
   },

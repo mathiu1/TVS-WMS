@@ -12,6 +12,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import imageCompression from 'browser-image-compression';
 
 const emptyPart = { partNumber: '', quantity: 1 };
 
@@ -36,10 +37,9 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  // Parts handlers
   const handlePartChange = (index, field, value) => {
     const updated = [...parts];
-    updated[index][field] = field === 'quantity' ? parseInt(value) || 1 : value;
+    updated[index][field] = field === 'quantity' ? (value === '' ? '' : parseInt(value)) : value;
     setParts(updated);
   };
 
@@ -53,8 +53,15 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
   };
 
   // Image handlers
-  const handleImageChange = (e) => {
-    const files = Array.from(e.target.files);
+  const handleImageChange = async (e) => {
+    let files = Array.from(e.target.files);
+
+    if (images.length + files.length > 3) {
+      toast.error('Maximum 3 images allowed.');
+      files = files.slice(0, Math.max(0, 3 - images.length));
+      if (files.length === 0) return;
+    }
+
     const validFiles = files.filter((f) => {
       if (!['image/jpeg', 'image/png'].includes(f.type)) {
         toast.error(`${f.name}: Only JPG and PNG allowed`);
@@ -67,16 +74,46 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
       return true;
     });
 
-    setImages((prev) => [...prev, ...validFiles]);
+    if (validFiles.length === 0) return;
 
-    // Generate previews
-    validFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setPreviews((prev) => [...prev, { name: file.name, url: e.target.result }]);
+    const toastId = toast.loading('Compressing images...');
+
+    try {
+      const options = {
+        maxSizeMB: 0.3, // 300kb max
+        maxWidthOrHeight: 1280, // reasonable max resolution
+        useWebWorker: true,
+        initialQuality: 0.9 // High quality
       };
-      reader.readAsDataURL(file);
-    });
+
+      const compressedFiles = await Promise.all(
+        validFiles.map(async (file) => {
+          try {
+            const compressedBlob = await imageCompression(file, options);
+            // Convert Blob back to File object to retain original file name
+            return new File([compressedBlob], file.name, { type: compressedBlob.type });
+          } catch (error) {
+            console.error('Compression error:', error);
+            return file; // Fallback to original
+          }
+        })
+      );
+
+      setImages((prev) => [...prev, ...compressedFiles]);
+
+      // Generate previews
+      compressedFiles.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setPreviews((prev) => [...prev, { name: file.name, url: e.target.result }]);
+        };
+        reader.readAsDataURL(file);
+      });
+
+      toast.success('Images compressed under 300kb!', { id: toastId });
+    } catch (err) {
+      toast.error('Failed to compress images', { id: toastId });
+    }
   };
 
   const removeImage = (index) => {
@@ -260,7 +297,7 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
           <label htmlFor="image-upload" className="upload-zone">
             <Upload size={32} />
             <span>Click or drag images here</span>
-            <small>JPG, PNG only • Max 5MB each</small>
+            <small>JPG, PNG only • Max 3 images • Max 5MB each</small>
             <input
               id="image-upload"
               type="file"
@@ -297,7 +334,16 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
           disabled={loading || parts.some((p) => !p.partNumber || p.quantity < 1)}
         >
           {loading ? (
-            <div className="loader-spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }} />
+            <div 
+              className="loader-spinner" 
+              style={{ 
+                width: '20px', 
+                height: '20px', 
+                borderWidth: '2px', 
+                borderColor: 'rgba(255,255,255,0.3)', 
+                borderTopColor: '#ffffff' 
+              }} 
+            />
           ) : (
             <>
               <CheckCircle size={20} />

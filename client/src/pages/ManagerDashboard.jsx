@@ -4,13 +4,21 @@ import {
   LayoutDashboard,
   TrendingUp,
   Users,
+  User,
   Package,
   Calendar,
   Search,
-  Eye,
-  X,
+  LogOut,
   ChevronLeft,
   ChevronRight,
+  Menu,
+  X,
+  Globe,
+  MapPin,
+  Box,
+  Clock,
+  Clipboard,
+  Eye,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -20,27 +28,27 @@ const ManagerDashboard = () => {
   const [records, setRecords] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
-  const [dateFilter, setDateFilter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [activeFilter, setActiveFilter] = useState('all'); // 'hour', 'today', 'week', 'month', 'custom', 'all'
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Fetch data on mount and date change
+  // Fetch data on mount and filter change
   useEffect(() => {
     fetchData();
-  }, [dateFilter]);
+  }, [startDate, endDate]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
       const params = {};
-      if (dateFilter) {
-        params.startDate = dateFilter;
-        params.endDate = dateFilter;
-      }
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
 
       const [reportRes, summaryRes, recordsRes] = await Promise.all([
         analyticsAPI.getDailyReport(params),
         analyticsAPI.getSummary(),
-        unloadingAPI.getAll({ page: pagination.page, limit: 10, date: dateFilter || undefined }),
+        unloadingAPI.getAll({ page: pagination.page, limit: 10, startDate, endDate }),
       ]);
 
       setReport(reportRes.data.data);
@@ -56,12 +64,54 @@ const ManagerDashboard = () => {
 
   const handlePageChange = async (newPage) => {
     try {
-      const res = await unloadingAPI.getAll({ page: newPage, limit: 10, date: dateFilter || undefined });
+      const res = await unloadingAPI.getAll({ page: newPage, limit: 10, startDate, endDate });
       setRecords(res.data.data);
       setPagination(res.data.pagination);
     } catch (err) {
       toast.error('Failed to load records.');
     }
+  };
+
+  const setQuickFilter = (type) => {
+    const now = new Date();
+    let start, end;
+
+    switch (type) {
+      case 'hour':
+        start = new Date(now.getTime() - 60 * 60 * 1000);
+        end = now;
+        break;
+      case 'today':
+        start = new Date(now);
+        start.setHours(0, 0, 0, 0);
+        end = now;
+        break;
+      case 'week':
+        start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        start.setHours(0, 0, 0, 0);
+        end = now;
+        break;
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        start.setHours(0, 0, 0, 0);
+        end = now;
+        break;
+      default:
+        return;
+    }
+
+    setActiveFilter(type);
+    setStartDate(start.toISOString());
+    setEndDate(end.toISOString());
+    setPagination((p) => ({ ...p, page: 1 }));
+  };
+
+  const clearFilters = () => {
+    setStartDate('');
+    setEndDate('');
+    setActiveFilter('all');
+    setPagination((p) => ({ ...p, page: 1 }));
   };
 
   if (loading) {
@@ -116,25 +166,86 @@ const ManagerDashboard = () => {
         </div>
       </div>
 
-      {/* Date Filter */}
-      <div className="filter-bar">
-        <div className="input-group filter-input">
-          <Calendar size={18} className="input-icon" />
-          <input
-            id="date-filter"
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-          />
+      {/* Luxury Filter Bar */}
+      <div className="filter-card">
+        <div className="filter-bar dashboard-filters">
+          <div className="filter-group">
+            <span className="filter-label">Quick Range:</span>
+            <div className="quick-filters">
+              <button 
+                className={`btn-tag ${activeFilter === 'hour' ? 'active' : ''}`} 
+                onClick={() => setQuickFilter('hour')}
+              >
+                Last Hour
+              </button>
+              <button 
+                className={`btn-tag ${activeFilter === 'today' ? 'active' : ''}`} 
+                onClick={() => setQuickFilter('today')}
+              >
+                Today
+              </button>
+              <button 
+                className={`btn-tag ${activeFilter === 'week' ? 'active' : ''}`} 
+                onClick={() => setQuickFilter('week')}
+              >
+                Week
+              </button>
+              <button 
+                className={`btn-tag ${activeFilter === 'month' ? 'active' : ''}`} 
+                onClick={() => setQuickFilter('month')}
+              >
+                Month
+              </button>
+            </div>
+          </div>
+
+          <div className="filter-separator"></div>
+
+          <div className="filter-group">
+            <span className="filter-label">Custom Period:</span>
+            <div className="custom-date-filters">
+              <div className="input-group filter-input">
+                <Calendar size={18} className="input-icon" />
+                <input
+                  id="start-date"
+                  type="date"
+                  value={startDate ? startDate.split('T')[0] : ''}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    setActiveFilter('custom');
+                    setPagination((p) => ({ ...p, page: 1 }));
+                  }}
+                  title="Start Date"
+                />
+              </div>
+              <span className="filter-range-text">to</span>
+              <div className="input-group filter-input">
+                <Calendar size={18} className="input-icon" />
+                <input
+                  id="end-date"
+                  type="date"
+                  value={endDate ? endDate.split('T')[0] : ''}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    setActiveFilter('custom');
+                    setPagination((p) => ({ ...p, page: 1 }));
+                  }}
+                  title="End Date"
+                />
+              </div>
+            </div>
+          </div>
+
+          {(startDate || endDate) && (
+            <button
+              onClick={clearFilters}
+              className="btn-clear"
+              title="Reset All Filters"
+            >
+              <X size={16} /> <span>Reset</span>
+            </button>
+          )}
         </div>
-        {dateFilter && (
-          <button
-            onClick={() => setDateFilter('')}
-            className="btn btn-sm btn-secondary"
-          >
-            <X size={14} /> Clear
-          </button>
-        )}
       </div>
 
       {/* Daily Report Table */}
@@ -216,47 +327,64 @@ const ManagerDashboard = () => {
             <div className="records-grid">
               {records.map((record) => (
                 <div key={record._id} className="record-card">
-                  <div className="record-header">
-                    <span className="record-invoice">#{record.invoiceNumber}</span>
-                    <span className="record-date">
-                      {new Date(record.createdAt).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                  <div className="record-body">
-                    <p><strong>Location:</strong> {record.locationName}</p>
-                    <p><strong>Employee:</strong> {record.employee?.name || 'N/A'}</p>
-                    <p><strong>Parts:</strong> {record.parts?.length || 0} items</p>
-                  </div>
-
-                  {/* Proof Images */}
-                  {record.images && record.images.length > 0 && (
-                    <div className="record-images">
-                      {record.images.slice(0, 3).map((img, i) => (
-                        <img
-                          key={i}
-                          src={img}
-                          alt={`Proof ${i + 1}`}
-                          className="record-thumb"
-                          onClick={() => setSelectedRecord(record)}
-                        />
-                      ))}
-                      {record.images.length > 3 && (
-                        <div
-                          className="record-thumb-more"
-                          onClick={() => setSelectedRecord(record)}
-                        >
-                          +{record.images.length - 3}
-                        </div>
-                      )}
+                  <div className="record-card-header">
+                    <div className="record-invoice-pill">
+                      <Clipboard size={14} />
+                      <span>#{record.invoiceNumber}</span>
                     </div>
-                  )}
+                    <div className="record-time-pill">
+                      <Clock size={14} />
+                      <span>
+                        {new Date(record.createdAt).toLocaleTimeString('en-IN', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="record-card-body">
+                    <div className="record-detail-item">
+                      <MapPin size={12} className="detail-icon location" />
+                      <div className="detail-text">
+                        <span className="detail-label">Location</span>
+                        <span className="detail-value">{record.locationName}</span>
+                      </div>
+                    </div>
 
-                  <button
-                    className="btn btn-sm btn-secondary btn-full"
-                    onClick={() => setSelectedRecord(record)}
-                  >
-                    <Eye size={14} /> View Details
-                  </button>
+                    <div className="record-detail-item">
+                      <User size={12} className="detail-icon employee" />
+                      <div className="detail-text">
+                        <span className="detail-label">Employee</span>
+                        <span className="detail-value">{record.employee?.name || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    <div className="record-detail-item">
+                      <Box size={12} className="detail-icon parts" />
+                      <div className="detail-text">
+                        <span className="detail-label">Parts</span>
+                        <span className="detail-value">{record.parts?.length || 0} items uploaded</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="record-card-footer">
+                    <div className="record-full-date">
+                      {new Date(record.createdAt).toLocaleDateString('en-IN', { 
+                        day: '2-digit', 
+                        month: 'short', 
+                        year: 'numeric' 
+                      })}
+                    </div>
+                    <button
+                      className="btn-view-details"
+                      onClick={() => setSelectedRecord(record)}
+                    >
+                      <Eye size={16} />
+                      <span>View Details</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

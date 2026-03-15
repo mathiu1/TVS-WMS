@@ -13,7 +13,18 @@ router.post(
   '/',
   auth,
   authorize('employee'),
-  upload.array('images', 10),
+  function (req, res, next) {
+    const uploadMiddleware = upload.array('images', 10);
+    uploadMiddleware(req, res, function (err) {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message: `Upload Error: ${err.message}`,
+        });
+      }
+      next();
+    });
+  },
   async (req, res) => {
     try {
       const { invoiceNumber, locationName, parts, vehicle } = req.body;
@@ -37,10 +48,8 @@ router.post(
         });
       }
 
-      // Get image paths (relative for URL serving)
-      const imagePaths = req.files.map(
-        (file) => `/uploads/parts/${file.filename}`
-      );
+      // Get image paths (secure URLs from Cloudinary)
+      const imagePaths = req.files.map((file) => file.path);
 
       const record = await UnloadingRecord.create({
         invoiceNumber,
@@ -67,6 +76,56 @@ router.post(
     }
   }
 );
+
+// @route   GET /api/unloading/stats
+// @desc    Get unloading statistics (today, week, month)
+// @access  Private
+router.get('/stats', auth, async (req, res) => {
+  try {
+    const { scope } = req.query;
+    const query = {};
+
+    // Filter by employee if not manager or if scope is not 'all'
+    if (req.user.role === 'employee' && scope !== 'all') {
+      query.employee = req.user.id;
+    }
+
+    const now = new Date();
+    
+    // Today
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    
+    // This Week (Starts Sunday)
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    
+    // This Month
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const [todayCount, weekCount, monthCount] = await Promise.all([
+      UnloadingRecord.countDocuments({ ...query, createdAt: { $gte: todayStart } }),
+      UnloadingRecord.countDocuments({ ...query, createdAt: { $gte: weekStart } }),
+      UnloadingRecord.countDocuments({ ...query, createdAt: { $gte: monthStart } }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        today: todayCount,
+        week: weekCount,
+        month: monthCount,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
 
 // @route   GET /api/unloading
 // @desc    Get all unloading records (with optional filters)
@@ -171,7 +230,22 @@ router.get('/:id', auth, async (req, res) => {
 // @route   PUT /api/unloading/:id
 // @desc    Update a single unloading record
 // @access  Private
-router.put('/:id', auth, upload.array('images', 10), async (req, res) => {
+router.put(
+  '/:id',
+  auth,
+  function (req, res, next) {
+    const uploadMiddleware = upload.array('images', 10);
+    uploadMiddleware(req, res, function (err) {
+      if (err) {
+        return res.status(400).json({
+          success: false,
+          message: `Upload Error: ${err.message}`,
+        });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
   try {
     const record = await UnloadingRecord.findById(req.params.id);
 
@@ -198,7 +272,7 @@ router.put('/:id', auth, upload.array('images', 10), async (req, res) => {
 
     // Process new images if any are uploaded
     if (req.files && req.files.length > 0) {
-      const imagePaths = req.files.map((file) => `/uploads/parts/${file.filename}`);
+      const imagePaths = req.files.map((file) => file.path);
       req.body.images = imagePaths;
     }
 

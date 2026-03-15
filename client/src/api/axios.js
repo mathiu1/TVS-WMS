@@ -12,8 +12,22 @@ API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('wms_token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      if (typeof config.headers.set === 'function') {
+        config.headers.set('Authorization', `Bearer ${token}`);
+      } else {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
+
+    // Critical: If sending FormData (file uploads), let browser/axios auto-set the boundary
+    if (config.data instanceof FormData) {
+      if (typeof config.headers.delete === 'function') {
+        config.headers.delete('Content-Type');
+      } else {
+        delete config.headers['Content-Type'];
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -44,14 +58,12 @@ export const authAPI = {
 
 // ===== UNLOADING API =====
 export const unloadingAPI = {
-  create: (formData) =>
-    API.post('/unloading', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  create: (formData) => API.post('/unloading', formData),
   getAll: (params) => API.get('/unloading', { params }),
   getById: (id) => API.get(`/unloading/${id}`),
   update: (id, data) => API.put(`/unloading/${id}`, data),
   delete: (id) => API.delete(`/unloading/${id}`),
+  getStats: (params) => API.get('/unloading/stats', { params }),
 };
 
 // ===== ANALYTICS API =====

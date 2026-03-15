@@ -27,6 +27,8 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   const [editRecord, setEditRecord] = useState(null);
   const [deleteConfirmRecord, setDeleteConfirmRecord] = useState(null);
   const [lightbox, setLightbox] = useState({ open: false, images: [], index: 0 });
+  const [stats, setStats] = useState({ today: 0, week: 0, month: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const openLightbox = (images, index) => {
     setLightbox({ open: true, images, index });
@@ -52,7 +54,20 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
 
   useEffect(() => {
     fetchRecords();
+    fetchStats();
   }, [startDate, endDate, searchFilter, pagination.page, scope]);
+
+  const fetchStats = async () => {
+    setStatsLoading(true);
+    try {
+      const res = await unloadingAPI.getStats({ scope });
+      setStats(res.data.stats);
+    } catch (err) {
+      console.error('Failed to load stats');
+    } finally {
+      setStatsLoading(false);
+    }
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -111,6 +126,31 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   const handleEditSuccess = () => {
     setEditRecord(null);
     fetchRecords();
+    fetchStats();
+  };
+
+  const setQuickFilter = (type) => {
+    const now = new Date();
+    let start, end;
+    
+    switch (type) {
+      case 'today':
+        start = new Date(now);
+        break;
+      case 'week':
+        start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        break;
+      case 'month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      default:
+        return;
+    }
+    
+    setStartDate(start.toISOString().split('T')[0]);
+    setEndDate(now.toISOString().split('T')[0]);
+    setPagination((p) => ({ ...p, page: 1 }));
   };
 
   if (loading && records.length === 0) {
@@ -132,6 +172,33 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
         </div>
       </div>
 
+      {/* Stats Cards - Only for My Records */}
+      {scope === 'me' && (
+        <div className="stats-grid">
+          <div className="stats-card">
+            <div className="stats-icon today"><Calendar size={20} /></div>
+            <div className="stats-info">
+              <span className="stats-label">Today</span>
+              <h3 className="stats-value">{statsLoading ? '-' : stats.today}</h3>
+            </div>
+          </div>
+          <div className="stats-card">
+            <div className="stats-icon week"><Calendar size={20} /></div>
+            <div className="stats-info">
+              <span className="stats-label">This Week</span>
+              <h3 className="stats-value">{statsLoading ? '-' : stats.week}</h3>
+            </div>
+          </div>
+          <div className="stats-card">
+            <div className="stats-icon month"><Calendar size={20} /></div>
+            <div className="stats-info">
+              <span className="stats-label">This Month</span>
+              <h3 className="stats-value">{statsLoading ? '-' : stats.month}</h3>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filters */}
       <div className="records-filters">
         <div className="input-group filter-search">
@@ -148,6 +215,16 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
           />
         </div>
         <div className="custom-date-filters" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div className="quick-filters">
+            <button 
+              className={`btn-tag ${startDate === new Date().toISOString().split('T')[0] ? 'active' : ''}`}
+              onClick={() => setQuickFilter('today')}
+            >
+              Today
+            </button>
+            <button className="btn-tag" onClick={() => setQuickFilter('week')}>Week</button>
+            <button className="btn-tag" onClick={() => setQuickFilter('month')}>Month</button>
+          </div>
           <div className="input-group filter-date">
             <Calendar size={18} className="input-icon" />
             <input
@@ -192,7 +269,7 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
         <span className="records-count">{pagination.total} records</span>
       </div>
 
-      {/* Records Grid */}
+      {/* Records Table */}
       {records.length === 0 ? (
         <div className="empty-state">
           <ClipboardList size={48} />
@@ -200,81 +277,95 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
         </div>
       ) : (
         <>
-          <div className="records-grid">
-            {records.map((record) => (
-              <div key={record._id} className="record-card">
-                <div className="record-header">
-                  <span className="record-invoice">
-                    <FileText size={14} />
-                    #{record.invoiceNumber}
-                  </span>
-                  <span className="record-date">
-                    {new Date(record.createdAt).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                      year: 'numeric',
-                    })}
-                  </span>
-                </div>
-                <div className="record-body">
-                  <p>
-                    <MapPin size={13} />
-                    <strong>Location:</strong> {record.locationName}
-                  </p>
-                  <p>
-                    <strong>Employee:</strong> {record.employee?.name || 'N/A'}
-                  </p>
-                  <p>
-                    <strong>Parts:</strong> {record.parts?.length || 0} items
-                  </p>
-                </div>
-
-                {record.images && record.images.length > 0 && (
-                  <div className="record-images">
-                    {record.images.slice(0, 3).map((img, i) => (
-                      <img
-                        key={i}
-                        src={img}
-                        alt={`Proof ${i + 1}`}
-                        className="record-thumb"
-                        onClick={() => setSelectedRecord(record)}
-                      />
-                    ))}
-                    {record.images.length > 3 && (
-                      <div
-                        className="record-thumb-more"
-                        onClick={() => setSelectedRecord(record)}
-                      >
-                        +{record.images.length - 3}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <button
-                  className="btn btn-sm btn-secondary btn-full"
-                  onClick={() => setSelectedRecord(record)}
-                >
-                  <Eye size={14} /> View Details
-                </button>
-                {scope === 'me' && (
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <button
-                      className="btn btn-sm btn-secondary btn-full"
-                      onClick={() => setEditRecord(record)}
-                    >
-                      <Edit size={14} /> Edit
-                    </button>
-                    <button
-                      className="btn btn-sm btn-danger btn-full"
-                      onClick={() => handleDelete(record._id)}
-                    >
-                      <Trash2 size={14} /> Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="table-card">
+            <div className="table-wrapper">
+              <table className="data-table records-table">
+                <thead>
+                  <tr>
+                    <th>Invoice</th>
+                    <th>Location</th>
+                    <th>Employee</th>
+                    <th>Parts</th>
+                    <th>Images</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((record) => (
+                    <tr key={record._id}>
+                      <td data-label="Invoice">
+                        <span className="record-invoice-cell">
+                          <FileText size={14} />
+                          #{record.invoiceNumber}
+                        </span>
+                      </td>
+                      <td data-label="Location">
+                        <span className="record-location-cell">
+                          <MapPin size={13} />
+                          {record.locationName}
+                        </span>
+                      </td>
+                      <td data-label="Employee">{record.employee?.name || 'N/A'}</td>
+                      <td data-label="Parts">
+                        <span className="badge badge-blue">{record.parts?.length || 0}</span>
+                      </td>
+                      <td data-label="Images">
+                        {record.images?.length > 0 ? (
+                          <span
+                            className="badge badge-img-count"
+                            onClick={() => setSelectedRecord(record)}
+                            title="View images"
+                          >
+                            {record.images.length}
+                          </span>
+                        ) : (
+                          <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
+                        )}
+                      </td>
+                      <td data-label="Date">
+                        <span className="record-date-cell">
+                          {new Date(record.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </td>
+                      <td data-label="Actions">
+                        <div className="table-actions">
+                          <button
+                            className="btn-icon btn-view"
+                            onClick={() => setSelectedRecord(record)}
+                            title="View Details"
+                          >
+                            <Eye size={15} />
+                          </button>
+                          {scope === 'me' && (
+                            <>
+                              <button
+                                className="btn-icon btn-edit"
+                                onClick={() => setEditRecord(record)}
+                                title="Edit"
+                              >
+                                <Edit size={15} />
+                              </button>
+                              <button
+                                className="btn-icon btn-delete"
+                                onClick={() => handleDelete(record._id)}
+                                title="Delete"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Pagination */}
