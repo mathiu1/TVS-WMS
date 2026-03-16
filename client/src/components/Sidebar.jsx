@@ -37,7 +37,7 @@ const Sidebar = () => {
   const managerLinks = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { to: '/all-records', icon: Globe, label: 'All Records' },
-    { to: '/employee-reports', icon: Users, label: 'Employee Reports' },
+    { to: '/employee-reports', icon: Users, label: 'Employees List' },
   ];
 
   const links = user?.role === 'manager' ? managerLinks : employeeLinks;

@@ -4,7 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db');
-require("./ping.js");
+
 // Route imports
 const authRoutes = require('./routes/authRoutes');
 const unloadingRoutes = require('./routes/unloadingRoutes');
@@ -60,7 +60,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-
+require("./ping.js");
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../client/dist"), {

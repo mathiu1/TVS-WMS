@@ -2,6 +2,7 @@ const express = require('express');
 const auth = require('../middleware/auth');
 const authorize = require('../middleware/role');
 const UnloadingRecord = require('../models/UnloadingRecord');
+const User = require('../models/User');
 
 const router = express.Router();
 
@@ -125,7 +126,7 @@ router.get('/summary', auth, authorize('manager'), async (req, res) => {
 // @access  Private (manager only)
 router.get('/employee-reports', auth, authorize('manager'), async (req, res) => {
   try {
-    const { filter, startDate, endDate } = req.query;
+    const { filter, startDate, endDate, employeeId } = req.query;
 
     // Build date range
     const now = new Date();
@@ -164,65 +165,70 @@ router.get('/employee-reports', auth, authorize('manager'), async (req, res) => 
     }
 
     const matchStage = {};
+    if (employeeId) {
+      const mongoose = require('mongoose');
+      matchStage.employee = new mongoose.Types.ObjectId(employeeId);
+    }
     if (dateStart) matchStage.createdAt = { $gte: dateStart };
     if (dateEnd) {
       matchStage.createdAt = matchStage.createdAt || {};
       matchStage.createdAt.$lte = dateEnd;
     }
 
-    const report = await UnloadingRecord.aggregate([
-      ...(Object.keys(matchStage).length > 0 ? [{ $match: matchStage }] : []),
+    const userMatch = {};
+    if (employeeId) {
+      const mongoose = require('mongoose');
+      userMatch._id = new mongoose.Types.ObjectId(employeeId);
+    }
 
-      // Group by employee
-      {
-        $group: {
-          _id: '$employee',
-          totalUnloads: { $sum: 1 },
-          totalParts: { $sum: { $size: '$parts' } },
-          locations: { $addToSet: '$locationName' },
-          invoices: { $push: '$invoiceNumber' },
-          lastActivity: { $max: '$createdAt' },
-          records: {
-            $push: {
-              _id: '$_id',
-              invoiceNumber: '$invoiceNumber',
-              locationName: '$locationName',
-              partsCount: { $size: '$parts' },
-              imagesCount: { $size: '$images' },
-              createdAt: '$createdAt',
-            },
-          },
-        },
-      },
+    const report = await User.aggregate([
+      { $match: userMatch },
 
-      // Lookup employee details
+      // Lookup unloading records with date filtering
       {
         $lookup: {
-          from: 'tvs_users',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'employee',
+          from: 'unloadingrecords',
+          let: { userId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ['$employee', '$$userId'] },
+                    ...(dateStart ? [{ $gte: ['$createdAt', dateStart] }] : []),
+                    ...(dateEnd ? [{ $lte: ['$createdAt', dateEnd] }] : []),
+                  ],
+                },
+              },
+            },
+            { $sort: { createdAt: -1 } },
+          ],
+          as: 'activityRecords',
         },
       },
-      { $unwind: '$employee' },
 
-      // Project clean output
+      // Project results
       {
         $project: {
           _id: 0,
           employeeId: '$_id',
-          name: '$employee.name',
-          email: '$employee.email',
-          totalUnloads: 1,
-          totalParts: 1,
-          locations: 1,
-          invoiceCount: { $size: '$invoices' },
-          lastActivity: 1,
-          records: { $slice: ['$records', 20] }, // Limit to latest 20
+          name: 1,
+          email: 1,
+          role: 1,
+          totalUnloads: { $size: '$activityRecords' },
+          totalParts: {
+            $reduce: {
+              input: '$activityRecords',
+              initialValue: 0,
+              in: { $add: ['$$value', { $size: '$$this.parts' }] },
+            },
+          },
+          lastActivity: { $max: '$activityRecords.createdAt' },
+          records: { $slice: ['$activityRecords', 20] },
         },
       },
 
-      { $sort: { totalUnloads: -1 } },
+      { $sort: { role: 1, name: 1 } },
     ]);
 
     res.status(200).json({

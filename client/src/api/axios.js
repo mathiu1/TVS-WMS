@@ -54,6 +54,8 @@ export const authAPI = {
   register: (data) => API.post('/auth/register', data),
   login: (data) => API.post('/auth/login', data),
   getMe: () => API.get('/auth/me'),
+  updateRole: (id, role) => API.patch(`/auth/users/${id}/role`, { role }),
+  deleteUser: (id) => API.delete(`/auth/users/${id}`),
 };
 
 // ===== UNLOADING API =====

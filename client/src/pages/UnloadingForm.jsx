@@ -185,10 +185,14 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
     <div className={editData ? '' : 'page-container'}>
       {!editData && (
         <div className="page-header">
-          <PackagePlus size={28} />
-          <div>
-            <h1>Vehicle Unloading</h1>
-            <p>Record parts received from vendor vehicle</p>
+          <div className="header-title-container">
+            <div className="summary-icon blue">
+              <PackagePlus size={28} />
+            </div>
+            <div className="header-text">
+              <h1>Vehicle Unloading</h1>
+              <p>Record parts received from vendor vehicle</p>
+            </div>
           </div>
         </div>
       )}

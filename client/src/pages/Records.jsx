@@ -12,6 +12,10 @@ import {
   Edit,
   Trash2,
   Calendar,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  RefreshCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UnloadingForm from './UnloadingForm';
@@ -26,12 +30,30 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [editRecord, setEditRecord] = useState(null);
   const [deleteConfirmRecord, setDeleteConfirmRecord] = useState(null);
-  const [lightbox, setLightbox] = useState({ open: false, images: [], index: 0 });
+  const [lightbox, setLightbox] = useState({ 
+    open: false, 
+    images: [], 
+    index: 0,
+    zoom: 1,
+    rotate: 0,
+    position: { x: 0, y: 0 },
+    isDragging: false,
+    dragStart: { x: 0, y: 0 }
+  });
   const [stats, setStats] = useState({ today: 0, week: 0, month: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
 
   const openLightbox = (images, index) => {
-    setLightbox({ open: true, images, index });
+    setLightbox({ 
+      open: true, 
+      images, 
+      index, 
+      zoom: 1, 
+      rotate: 0, 
+      position: { x: 0, y: 0 },
+      isDragging: false,
+      dragStart: { x: 0, y: 0 }
+    });
   };
 
   const closeLightbox = () => {
@@ -42,6 +64,9 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
     setLightbox((prev) => ({
       ...prev,
       index: (prev.index - 1 + prev.images.length) % prev.images.length,
+      zoom: 1,
+      rotate: 0,
+      position: { x: 0, y: 0 }
     }));
   };
 
@@ -49,7 +74,44 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
     setLightbox((prev) => ({
       ...prev,
       index: (prev.index + 1) % prev.images.length,
+      zoom: 1,
+      rotate: 0,
+      position: { x: 0, y: 0 }
     }));
+  };
+
+  const handleDragStart = (e) => {
+    if (lightbox.zoom <= 1) return;
+    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+    
+    setLightbox(p => ({
+      ...p,
+      isDragging: true,
+      dragStart: { 
+        x: clientX - p.position.x, 
+        y: clientY - p.position.y 
+      }
+    }));
+  };
+
+  const handleDragMove = (e) => {
+    if (!lightbox.isDragging || lightbox.zoom <= 1) return;
+    e.preventDefault();
+    const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+    setLightbox(p => ({
+      ...p,
+      position: {
+        x: clientX - p.dragStart.x,
+        y: clientY - p.dragStart.y
+      }
+    }));
+  };
+
+  const handleDragEnd = () => {
+    setLightbox(p => ({ ...p, isDragging: false }));
   };
 
   useEffect(() => {
@@ -165,10 +227,14 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   return (
     <div className="page-container">
       <div className="page-header">
-        <ClipboardList size={28} />
-        <div>
-          <h1>{title}</h1>
-          <p>Browse unloading records with proof images</p>
+        <div className="header-title-container">
+          <div className="summary-icon blue">
+            <ClipboardList size={28} />
+          </div>
+          <div className="header-text">
+            <h1>{title}</h1>
+            <p>Browse unloading records with proof images</p>
+          </div>
         </div>
       </div>
 
@@ -199,23 +265,24 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="records-filters">
-        <div className="input-group filter-search">
-          <Search size={18} className="input-icon" />
-          <input
-            id="search-invoice"
-            type="text"
-            placeholder="Search by invoice..."
-            value={searchFilter}
-            onChange={(e) => {
-              setSearchFilter(e.target.value);
-              setPagination((p) => ({ ...p, page: 1 }));
-            }}
-          />
-        </div>
-        <div className="custom-date-filters" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          <div className="quick-filters">
+      {/* Filters Section */}
+      <div className="filters-container">
+        <div className="filter-main">
+          <div className="input-group filter-search">
+            <Search size={18} className="input-icon" />
+            <input
+              id="search-invoice"
+              type="text"
+              placeholder="Search by invoice number..."
+              value={searchFilter}
+              onChange={(e) => {
+                setSearchFilter(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            />
+          </div>
+
+          <div className="filter-quick-date">
             <button 
               className={`btn-tag ${startDate === new Date().toISOString().split('T')[0] ? 'active' : ''}`}
               onClick={() => setQuickFilter('today')}
@@ -225,48 +292,54 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
             <button className="btn-tag" onClick={() => setQuickFilter('week')}>Week</button>
             <button className="btn-tag" onClick={() => setQuickFilter('month')}>Month</button>
           </div>
-          <div className="input-group filter-date">
-            <Calendar size={18} className="input-icon" />
-            <input
-              id="start-date"
-              type="date"
-              value={startDate}
-              onChange={(e) => {
-                setStartDate(e.target.value);
-                setPagination((p) => ({ ...p, page: 1 }));
-              }}
-              title="Start Date"
-            />
-          </div>
-          <span className="text-muted" style={{ fontSize: '0.8rem' }}>to</span>
-          <div className="input-group filter-date">
-            <Calendar size={18} className="input-icon" />
-            <input
-              id="end-date"
-              type="date"
-              value={endDate}
-              onChange={(e) => {
-                setEndDate(e.target.value);
-                setPagination((p) => ({ ...p, page: 1 }));
-              }}
-              title="End Date"
-            />
-          </div>
         </div>
-        {(startDate || endDate || searchFilter) && (
-          <button
-            onClick={() => {
-              setStartDate('');
-              setEndDate('');
-              setSearchFilter('');
-              setPagination((p) => ({ ...p, page: 1 }));
-            }}
-            className="btn btn-sm btn-secondary"
-          >
-            <X size={14} /> Clear
-          </button>
-        )}
-        <span className="records-count">{pagination.total} records</span>
+
+        <div className="filter-secondary">
+          <div className="filter-range">
+            <div className="input-group filter-date">
+              <Calendar size={18} className="input-icon" />
+              <input
+                id="start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setPagination((p) => ({ ...p, page: 1 }));
+                }}
+              />
+            </div>
+            <span className="range-separator">to</span>
+            <div className="input-group filter-date">
+              <Calendar size={18} className="input-icon" />
+              <input
+                id="end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPagination((p) => ({ ...p, page: 1 }));
+                }}
+              />
+            </div>
+          </div>
+
+
+          {(startDate || endDate || searchFilter) && (
+            <button 
+              className="btn-clear-filters"
+              onClick={() => {
+                setStartDate('');
+                setEndDate('');
+                setSearchFilter('');
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+            >
+              Clear Filters
+            </button>
+          )}
+
+          <span className="records-count">{pagination.total} records</span>
+        </div>
       </div>
 
       {/* Records Table */}
@@ -288,12 +361,16 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
                     <th>Parts</th>
                     <th>Images</th>
                     <th>Date</th>
-                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {records.map((record) => (
-                    <tr key={record._id}>
+                    <tr 
+                      key={record._id} 
+                      className="clickable-row" 
+                      onClick={() => setSelectedRecord(record)}
+                      title="Click to view full record"
+                    >
                       <td data-label="Invoice">
                         <span className="record-invoice-cell">
                           <FileText size={14} />
@@ -331,35 +408,6 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
                             year: 'numeric',
                           })}
                         </span>
-                      </td>
-                      <td data-label="Actions">
-                        <div className="table-actions">
-                          <button
-                            className="btn-icon btn-view"
-                            onClick={() => setSelectedRecord(record)}
-                            title="View Details"
-                          >
-                            <Eye size={15} />
-                          </button>
-                          {scope === 'me' && (
-                            <>
-                              <button
-                                className="btn-icon btn-edit"
-                                onClick={() => setEditRecord(record)}
-                                title="Edit"
-                              >
-                                <Edit size={15} />
-                              </button>
-                              <button
-                                className="btn-icon btn-delete"
-                                onClick={() => handleDelete(record._id)}
-                                title="Delete"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            </>
-                          )}
-                        </div>
                       </td>
                     </tr>
                   ))}
@@ -461,6 +509,25 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
               <p><strong>Date:</strong> {new Date(selectedRecord.createdAt).toLocaleString('en-IN')}</p>
             </div>
 
+            {scope === 'me' && (
+              <div className="modal-actions-row" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem', background: 'rgba(0,0,0,0.02)', borderRadius: '12px' }}>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={(e) => { e.stopPropagation(); setEditRecord(selectedRecord); }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                >
+                  <Edit size={14} /> Edit Record
+                </button>
+                <button 
+                  className="btn btn-danger btn-sm" 
+                  onClick={(e) => { e.stopPropagation(); handleDelete(selectedRecord._id); }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                >
+                  <Trash2 size={14} /> Delete Record
+                </button>
+              </div>
+            )}
+
             <h3>Parts ({selectedRecord.parts?.length})</h3>
             <div className="table-wrapper">
               <table className="data-table compact">
@@ -507,17 +574,49 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
           </button>
 
           <div className="lightbox-body" onClick={(e) => e.stopPropagation()}>
+            <div className="lightbox-controls">
+              <button onClick={() => setLightbox(p => ({ ...p, zoom: Math.min(p.zoom + 0.25, 3) }))} title="Zoom In">
+                <ZoomIn size={20} />
+              </button>
+              <button onClick={() => setLightbox(p => ({ ...p, zoom: Math.max(p.zoom - 0.25, 0.5) }))} title="Zoom Out">
+                <ZoomOut size={20} />
+              </button>
+              <button onClick={() => setLightbox(p => ({ ...p, rotate: (p.rotate + 90) % 360 }))} title="Rotate">
+                <RotateCw size={20} />
+              </button>
+              <button onClick={() => setLightbox(p => ({ ...p, zoom: 1, rotate: 0, position: { x: 0, y: 0 } }))} title="Reset">
+                <RefreshCcw size={20} />
+              </button>
+            </div>
+
             {lightbox.images.length > 1 && (
               <button className="lightbox-nav lightbox-prev" onClick={lightboxPrev}>
                 <ChevronLeft size={28} />
               </button>
             )}
 
-            <img
-              src={lightbox.images[lightbox.index]}
-              alt={`Proof ${lightbox.index + 1}`}
-              className="lightbox-image"
-            />
+            <div 
+              className="lightbox-image-container"
+              onMouseMove={handleDragMove}
+              onMouseUp={handleDragEnd}
+              onMouseLeave={handleDragEnd}
+              onTouchMove={handleDragMove}
+              onTouchEnd={handleDragEnd}
+            >
+              <img
+                src={lightbox.images[lightbox.index]}
+                alt={`Proof ${lightbox.index + 1}`}
+                className="lightbox-image"
+                onMouseDown={handleDragStart}
+                onTouchStart={handleDragStart}
+                style={{ 
+                  transform: `translate(${lightbox.position.x}px, ${lightbox.position.y}px) scale(${lightbox.zoom}) rotate(${lightbox.rotate}deg)`,
+                  transition: lightbox.isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  cursor: lightbox.zoom > 1 ? (lightbox.isDragging ? 'grabbing' : 'grab') : 'default'
+                }}
+                draggable="false"
+              />
+            </div>
 
             {lightbox.images.length > 1 && (
               <button className="lightbox-nav lightbox-next" onClick={lightboxNext}>

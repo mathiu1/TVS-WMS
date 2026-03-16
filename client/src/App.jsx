@@ -5,11 +5,11 @@ import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import GuestRoute from './components/GuestRoute';
 import Login from './pages/Login';
-import Register from './pages/Register';
 import UnloadingForm from './pages/UnloadingForm';
 import ManagerDashboard from './pages/ManagerDashboard';
 import Records from './pages/Records';
 import EmployeeReports from './pages/EmployeeReports';
+import EmployeeDetail from './pages/EmployeeDetail';
 import './App.css';
 
 const HomeRedirect = () => {
@@ -51,14 +51,6 @@ const AppContent = () => {
               }
             />
             <Route
-              path="/register"
-              element={
-                <GuestRoute>
-                  <Register />
-                </GuestRoute>
-              }
-            />
-            <Route
               path="/unloading"
               element={
                 <ProtectedRoute allowedRoles={['employee']}>
@@ -95,6 +87,14 @@ const AppContent = () => {
               element={
                 <ProtectedRoute allowedRoles={['manager']}>
                   <EmployeeReports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/employee-reports/:employeeId"
+              element={
+                <ProtectedRoute allowedRoles={['manager']}>
+                  <EmployeeDetail />
                 </ProtectedRoute>
               }
             />
