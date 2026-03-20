@@ -53,7 +53,7 @@ const AppContent = () => {
             <Route
               path="/unloading"
               element={
-                <ProtectedRoute allowedRoles={['employee']}>
+                <ProtectedRoute allowedRoles={['employee', 'manager']}>
                   <UnloadingForm />
                 </ProtectedRoute>
               }
@@ -70,7 +70,7 @@ const AppContent = () => {
               path="/my-records"
               element={
                 <ProtectedRoute allowedRoles={['employee']}>
-                  <Records scope="me" title="My Records" />
+                  <Records scope="mine" title="My Records" />
                 </ProtectedRoute>
               }
             />
@@ -78,7 +78,7 @@ const AppContent = () => {
               path="/all-records"
               element={
                 <ProtectedRoute allowedRoles={['employee', 'manager']}>
-                  <Records scope="all" title="All Records" />
+                  <Records scope="all" title="Unloading Reports" />
                 </ProtectedRoute>
               }
             />

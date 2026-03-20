@@ -1,56 +1,63 @@
 const mongoose = require('mongoose');
 
-const partSchema = new mongoose.Schema({
-  partNumber: {
+const vendorSchema = new mongoose.Schema({
+  vendorId: {
     type: String,
-    required: [true, 'Part number is required'],
+    unique: true,
+  },
+  vendorName: {
+    type: String,
+    required: [true, 'Vendor name is required'],
     trim: true,
   },
-  quantity: {
+  invoiceCount: {
     type: Number,
-    required: [true, 'Quantity is required'],
-    min: 1,
+    required: [true, 'Invoice count is required'],
+    min: 0,
+    default: 1,
+  },
+  partsCount: {
+    type: Number,
+    required: [true, 'Parts count is required'],
+    min: 0,
+    default: 0,
+  },
+  storageLocation: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  images: {
+    type: [String],
+    default: [],
   },
 });
 
 const unloadingRecordSchema = new mongoose.Schema(
   {
-    invoiceNumber: {
+    vehicleNumber: {
       type: String,
-      required: [true, 'Invoice number is required'],
+      required: [true, 'Vehicle number is required'],
       trim: true,
+      uppercase: true,
     },
     locationName: {
       type: String,
-      required: [true, 'Location name is required'],
       trim: true,
     },
-    parts: {
-      type: [partSchema],
+    vendors: {
+      type: [vendorSchema],
       validate: {
         validator: function (v) {
           return v && v.length > 0;
         },
-        message: 'At least one part is required',
-      },
-    },
-    images: {
-      type: [String],
-      validate: {
-        validator: function (v) {
-          return v && v.length > 0;
-        },
-        message: 'At least one proof image is required',
+        message: 'At least one vendor entry is required',
       },
     },
     employee: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'tvs_user',
       required: true,
-    },
-    vehicle: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Vehicle',
     },
   },
   { timestamps: true }

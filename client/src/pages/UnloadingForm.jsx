@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { unloadingAPI } from '../api/axios';
 import {
   PackagePlus,
@@ -10,59 +11,79 @@ import {
   Image as ImageIcon,
   FileText,
   MapPin,
+  Truck,
+  Users,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import imageCompression from 'browser-image-compression';
 
-const emptyPart = { partNumber: '', quantity: 1 };
+const emptyVendor = {
+  vendorName: '',
+  invoiceCount: 1,
+  partsCount: 0,
+  storageLocation: '',
+  files: [],    // New: per-vendor File objects
+  previews: [], // New: per-vendor preview URLs
+  images: []    // Existing Cloudinary URLs
+};
 
 const UnloadingForm = ({ editData = null, onSuccess = null }) => {
   const [form, setForm] = useState({
-    invoiceNumber: editData?.invoiceNumber || '',
+    vehicleNumber: editData?.vehicleNumber || '',
     locationName: editData?.locationName || '',
   });
-  const [parts, setParts] = useState(editData?.parts || [{ ...emptyPart }]);
-  
-  // For edit mode, we pre-fill previews with existing images, 
-  // but if new images are selected, we know it's a replacement.
-  const [images, setImages] = useState([]);
-  const [previews, setPreviews] = useState(
-    editData?.images ? editData.images.map((url) => ({ name: 'existing', url })) : []
+
+  const [vendors, setVendors] = useState(
+    editData?.vendors?.map(v => ({
+      ...v,
+      files: [],
+      previews: v.images ? v.images.map(url => ({ name: 'existing', url })) : []
+    })) || [{ ...emptyVendor }]
   );
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [submittedVendors, setSubmittedVendors] = useState([]);
+
+  const navigate = useNavigate();
 
   // Form field handlers
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handlePartChange = (index, field, value) => {
-    const updated = [...parts];
-    updated[index][field] = field === 'quantity' ? (value === '' ? '' : parseInt(value)) : value;
-    setParts(updated);
+  const handleVendorChange = (index, field, value) => {
+    const updated = [...vendors];
+    if (field === 'invoiceCount' || field === 'partsCount') {
+      updated[index][field] = value === '' ? '' : parseInt(value);
+    } else {
+      updated[index][field] = value;
+    }
+    setVendors(updated);
   };
 
-  const addPart = () => {
-    setParts([...parts, { ...emptyPart }]);
+  const addVendor = () => {
+    setVendors([...vendors, { ...emptyVendor }]);
   };
 
-  const removePart = (index) => {
-    if (parts.length === 1) return;
-    setParts(parts.filter((_, i) => i !== index));
+  const removeVendor = (index) => {
+    if (vendors.length === 1) return;
+    setVendors(vendors.filter((_, i) => i !== index));
   };
 
-  // Image handlers
-  const handleImageChange = async (e) => {
-    let files = Array.from(e.target.files);
+  // Image handlers (Per Vendor)
+  const handleImageChange = async (index, e) => {
+    let rawFiles = Array.from(e.target.files);
+    const vendor = vendors[index];
 
-    if (images.length + files.length > 3) {
-      toast.error('Maximum 3 images allowed.');
-      files = files.slice(0, Math.max(0, 3 - images.length));
-      if (files.length === 0) return;
+    if (vendor.files.length + vendor.previews.filter(p => p.name === 'existing').length + rawFiles.length > 3) {
+      toast.error('Maximum 3 images allowed per vendor.');
+      rawFiles = rawFiles.slice(0, Math.max(0, 3 - (vendor.files.length + vendor.previews.filter(p => p.name === 'existing').length)));
+      if (rawFiles.length === 0) return;
     }
 
-    const validFiles = files.filter((f) => {
+    const validFiles = rawFiles.filter((f) => {
       if (!['image/jpeg', 'image/png'].includes(f.type)) {
         toast.error(`${f.name}: Only JPG and PNG allowed`);
         return false;
@@ -80,66 +101,99 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
 
     try {
       const options = {
-        maxSizeMB: 0.3, // 300kb max
-        maxWidthOrHeight: 1280, // reasonable max resolution
+        maxSizeMB: 0.3,
+        maxWidthOrHeight: 1280,
         useWebWorker: true,
-        initialQuality: 0.9 // High quality
+        initialQuality: 0.9
       };
 
       const compressedFiles = await Promise.all(
         validFiles.map(async (file) => {
           try {
             const compressedBlob = await imageCompression(file, options);
-            // Convert Blob back to File object to retain original file name
             return new File([compressedBlob], file.name, { type: compressedBlob.type });
           } catch (error) {
             console.error('Compression error:', error);
-            return file; // Fallback to original
+            return file;
           }
         })
       );
 
-      setImages((prev) => [...prev, ...compressedFiles]);
+      const updatedVendors = [...vendors];
+      updatedVendors[index] = {
+        ...vendor,
+        files: [...vendor.files, ...compressedFiles]
+      };
 
       // Generate previews
-      compressedFiles.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setPreviews((prev) => [...prev, { name: file.name, url: e.target.result }]);
-        };
-        reader.readAsDataURL(file);
-      });
+      const newPreviews = await Promise.all(compressedFiles.map(file => {
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve({ name: file.name, url: e.target.result });
+          reader.readAsDataURL(file);
+        });
+      }));
 
-      toast.success('Images compressed under 300kb!', { id: toastId });
+      updatedVendors[index].previews = [...updatedVendors[index].previews, ...newPreviews];
+      setVendors(updatedVendors);
+
+      toast.success('Images added to vendor!', { id: toastId });
     } catch (err) {
-      toast.error('Failed to compress images', { id: toastId });
+      toast.error('Failed to process images', { id: toastId });
     }
   };
 
-  const removeImage = (index) => {
-    // If it's an existing image (from editMode), we just remove it from previews.
-    // The backend won't keep it unless it's sent, but currently the API expects all new images if updated.
-    // For simplicity, if they remove ANY image in edit mode, they must re-upload what they want.
-    if (previews[index]?.name === 'existing') {
-        toast('In edit mode, removing an image requires you to re-upload all proof images.', { icon: 'ℹ️' });
-    }
-    
-    setImages(images.filter((_, i) => i !== index));
-    setPreviews(previews.filter((_, i) => i !== index));
+  const removeImage = (vendorIdx, imageIdx) => {
+    const updated = vendors.map((v, vIdx) => {
+      if (vIdx !== vendorIdx) return v;
+
+      const newVendor = { ...v };
+      const preview = newVendor.previews[imageIdx];
+
+      if (preview.name === 'existing') {
+        newVendor.images = (newVendor.images || []).filter(url => url !== preview.url);
+        toast('Existing image removed. Save to apply changes.', { icon: 'ℹ️' });
+      } else {
+        const fileName = preview.name;
+        newVendor.files = (newVendor.files || []).filter(f => f.name !== fileName);
+      }
+
+      newVendor.previews = newVendor.previews.filter((_, i) => i !== imageIdx);
+      return newVendor;
+    });
+
+    setVendors(updated);
   };
 
   // Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!editData && images.length === 0) {
-      toast.error('Please upload at least one proof image.');
+    const vehicleRegex = /^[A-Z]{2}[ -]?[0-9]{1,2}(?:[ -]?[A-Z]{1,2})?[ -]?[0-9]{4}$/i;
+    if (!vehicleRegex.test(form.vehicleNumber)) {
+      toast.error('Invalid Vehicle Number format (e.g. TN 21 BS 3133)');
       return;
     }
-    // In edit mode, if no NEW images are uploaded, and they haven't cleared the existing ones, we let it pass.
-    if (editData && images.length === 0 && previews.length === 0) {
-        toast.error('Please upload at least one proof image.');
-        return;
+
+    // Ensure all vendor fields have values
+    const missingFields = vendors.some(v => 
+      !v.vendorName.trim() || 
+      !v.storageLocation.trim() || 
+      v.invoiceCount < 1 || 
+      v.partsCount < 0
+    );
+
+    if (missingFields) {
+      toast.error('Please fill all mandatory vendor fields (Name, Location, Invoices, Parts)');
+      return;
+    }
+
+    // Custom validation: At least one image per vendor? Or just globally?
+    const missingImages = vendors.some(v => v.files.length === 0 && v.previews.filter(p => p.name === 'existing').length === 0);
+
+    if (!editData && missingImages) {
+      toast.error('Please upload at least one proof image for each vendor.');
+      return;
     }
 
     setLoading(true);
@@ -147,31 +201,52 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
 
     try {
       const formData = new FormData();
-      formData.append('invoiceNumber', form.invoiceNumber);
+      formData.append('vehicleNumber', form.vehicleNumber);
       formData.append('locationName', form.locationName);
-      formData.append('parts', JSON.stringify(parts));
 
-      if (images.length > 0) {
-        images.forEach((img) => {
-          formData.append('images', img);
+      // We'll flatten all files into a single array and keep track of indices
+      let allFiles = [];
+      const vendorsToSubmit = vendors.map(vendor => {
+        const startIndex = allFiles.length;
+        allFiles = [...allFiles, ...vendor.files];
+        const endIndex = allFiles.length;
+
+        // Create an array of indices [0, 1, 2...] for the current files
+        const imageIndices = Array.from(
+          { length: endIndex - startIndex },
+          (_, i) => startIndex + i
+        );
+
+        // Remove files/previews from the JSON object sent to server
+        const { files, previews, ...rest } = vendor;
+        return {
+          ...rest,
+          imageIndices
+        };
+      });
+
+      formData.append('vendors', JSON.stringify(vendorsToSubmit));
+
+      if (allFiles.length > 0) {
+        allFiles.forEach((file) => {
+          formData.append('images', file);
         });
       }
 
       if (editData) {
-        // Only send images if they actually uploaded new ones. 
-        // Our backend expects images to be replaced entirely if the 'images' field is present.
         await unloadingAPI.update(editData._id, formData);
-        toast.success('Unloading record updated successfully!');
+        toast.success('Record updated successfully!');
         if (onSuccess) onSuccess();
+        setTimeout(() => navigate('/records'), 1500);
       } else {
-        await unloadingAPI.create(formData);
-        toast.success('Unloading record submitted successfully!');
-        setSuccess(true);
-        setForm({ invoiceNumber: '', locationName: '' });
-        setParts([{ ...emptyPart }]);
-        setImages([]);
-        setPreviews([]);
-        setTimeout(() => setSuccess(false), 3000);
+        const response = await unloadingAPI.create(formData);
+        if (response.data.success) {
+          toast.success('Vehicle unloading recorded successfully!');
+          setSubmittedVendors(response.data.data.vendors);
+          setShowSuccessModal(true);
+          setForm({ vehicleNumber: '', locationName: '' });
+          setVendors([{ ...emptyVendor }]);
+        }
       }
     } catch (err) {
       const msg = err.response?.data?.message || 'Failed to submit record.';
@@ -187,11 +262,11 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
         <div className="page-header">
           <div className="header-title-container">
             <div className="summary-icon blue">
-              <PackagePlus size={28} />
+              <Truck size={28} />
             </div>
             <div className="header-text">
               <h1>Vehicle Unloading</h1>
-              <p>Record parts received from vendor vehicle</p>
+              <p>Record unloading operations by vehicle sessions</p>
             </div>
           </div>
         </div>
@@ -200,164 +275,196 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
       {success && (
         <div className="alert alert-success">
           <CheckCircle size={18} />
-          <span>Record submitted successfully!</span>
+          <span>Vehicle data recorded successfully!</span>
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="unloading-form">
-        {/* Invoice & Location */}
+        {/* Vehicle Card */}
         <div className="form-card">
           <h2 className="form-card-title">
-            <FileText size={20} />
-            Invoice Details
+            <Truck size={20} />
+            Vehicle Details
           </h2>
-          <div className="form-grid">
-            <div className="input-group">
-              <FileText size={18} className="input-icon" />
-              <input
-                id="invoice-number"
-                type="text"
-                name="invoiceNumber"
-                placeholder="Invoice Number"
-                value={form.invoiceNumber}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            <div className="input-group">
-              <MapPin size={18} className="input-icon" />
-              <input
-                id="location-name"
-                type="text"
-                name="locationName"
-                placeholder="Storage Location Name"
-                value={form.locationName}
-                onChange={handleChange}
-                required
-              />
-            </div>
+          <div className="input-group">
+            <Truck size={18} className="input-icon" />
+            <input
+              id="vehicle-number"
+              type="text"
+              name="vehicleNumber"
+              placeholder="Vehicle Number (e.g. TN 21 BS 3133)"
+              value={form.vehicleNumber}
+              onChange={handleChange}
+              required
+              className="premium-input-large"
+            />
           </div>
         </div>
 
-        {/* Parts List */}
+        {/* Vendors List Card */}
         <div className="form-card">
           <div className="form-card-header">
             <h2 className="form-card-title">
-              <PackagePlus size={20} />
-              Parts List
+              <Users size={20} />
+              Vendors & Inventory
             </h2>
-            <button type="button" onClick={addPart} className="btn btn-sm btn-secondary">
-              <Plus size={16} /> Add Part
+            <button type="button" onClick={addVendor} className="btn btn-sm btn-secondary">
+              <Plus size={16} /> Add Vendor
             </button>
           </div>
 
           <div className="parts-list">
             <div className="parts-list-header">
               <span className="col-index">#</span>
-              <span className="col-part">Part Number *</span>
-              <span className="col-qty">Quantity *</span>
-              <span className="col-action"></span>
+              <span className="col-part">Vendor Name *</span>
+              <span className="col-loc">Location *</span>
+              <span className="col-qty">Invoices *</span>
+              <span className="col-qty">Parts *</span>
+              <span className="col-action">Actions</span>
             </div>
-            {parts.map((part, index) => (
+            {vendors.map((v, index) => (
               <div key={index} className="part-row">
                 <span className="part-index">{index + 1}</span>
-                <input
-                  type="text"
-                  placeholder="Part Number *"
-                  value={part.partNumber}
-                  onChange={(e) => handlePartChange(index, 'partNumber', e.target.value)}
-                  required
-                />
-                <input
-                  type="number"
-                  placeholder="Qty"
-                  value={part.quantity}
-                  onChange={(e) => handlePartChange(index, 'quantity', e.target.value)}
-                  required
-                  min={1}
-                  className="qty-input"
-                />
-                <button
-                  type="button"
-                  onClick={() => removePart(index)}
-                  className="btn-icon btn-danger"
-                  disabled={parts.length === 1}
-                  title="Remove part"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="col-vendor">
+                  <label className="mobile-label">Vendor Name</label>
+                  <input
+                    type="text"
+                    placeholder="Vendor Name"
+                    value={v.vendorName}
+                    onChange={(e) => handleVendorChange(index, 'vendorName', e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="col-location">
+                  <label className="mobile-label">Location</label>
+                  <input
+                    type="text"
+                    placeholder="Dock"
+                    value={v.storageLocation}
+                    onChange={(e) => handleVendorChange(index, 'storageLocation', e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="col-invoices">
+                  <label className="mobile-label">Invoices</label>
+                  <input
+                    type="number"
+                    placeholder="Inv"
+                    value={v.invoiceCount}
+                    onChange={(e) => handleVendorChange(index, 'invoiceCount', e.target.value)}
+                    required
+                    min={1}
+                  />
+                </div>
+                <div className="col-parts">
+                  <label className="mobile-label">Parts</label>
+                  <input
+                    type="number"
+                    placeholder="Parts"
+                    value={v.partsCount}
+                    onChange={(e) => handleVendorChange(index, 'partsCount', e.target.value)}
+                    required
+                    min={0}
+                  />
+                </div>
+                <div className="col-action-group">
+                  <label className="vendor-row-action" title="Add Photo">
+                    <ImageIcon size={16} className={v.previews.length > 0 ? 'text-primary' : ''} />
+                    <span>Photo</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      multiple
+                      onChange={(e) => handleImageChange(index, e)}
+                      className="hidden-file-input"
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => removeVendor(index)}
+                    className="btn-icon btn-danger"
+                    disabled={vendors.length === 1}
+                    title="Remove Vendor"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+
+                {/* Vendor Mini-Gallery */}
+                {v.previews.length > 0 && (
+                  <div className="vendor-previews">
+                    {v.previews.map((preview, imgIdx) => (
+                      <div key={imgIdx} className="preview-mini-v3">
+                        <img src={preview.url} alt="Proof" />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index, imgIdx)}
+                          className="preview-remove-v3"
+                        >
+                          <X size={8} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
-        {/* Image Upload */}
-        <div className="form-card">
-          <h2 className="form-card-title">
-            <ImageIcon size={20} />
-            Proof Images
-          </h2>
-
-          <label htmlFor="image-upload" className="upload-zone">
-            <Upload size={32} />
-            <span>Click or drag images here</span>
-            <small>JPG, PNG only • Max 3 images • Max 5MB each</small>
-            <input
-              id="image-upload"
-              type="file"
-              accept="image/jpeg,image/png"
-              multiple
-              onChange={handleImageChange}
-              className="hidden-input"
-            />
-          </label>
-
-          {previews.length > 0 && (
-            <div className="image-previews">
-              {previews.map((preview, index) => (
-                <div key={index} className="preview-card">
-                  <img src={preview.url} alt={`Preview ${index + 1}`} />
-                  <button
-                    type="button"
-                    onClick={() => removeImage(index)}
-                    className="preview-remove"
-                  >
-                    <X size={14} />
-                  </button>
-                  <span className="preview-name">{preview.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Submit */}
         <button
           type="submit"
-          className="btn btn-primary submit-btn"
-          disabled={loading || parts.some((p) => !p.partNumber || p.quantity < 1)}
+          className="btn btn-primary submit-btn-v2"
+          disabled={loading || !form.vehicleNumber || vendors.some((v) => !v.vendorName || !v.storageLocation)}
         >
           {loading ? (
-            <div 
-              className="loader-spinner" 
-              style={{ 
-                width: '20px', 
-                height: '20px', 
-                borderWidth: '2px', 
-                borderColor: 'rgba(255,255,255,0.3)', 
-                borderTopColor: '#ffffff' 
-              }} 
-            />
+            <div className="loader-spinner-white" />
           ) : (
             <>
               <CheckCircle size={20} />
-              {editData ? 'Save Changes' : 'Submit Unloading Record'}
+              {editData ? 'Update Record' : 'Submit Unloading Detail'}
             </>
           )}
         </button>
-      </form>
-    </div>
-  );
+    </form>
+
+    {/* Success Modal */}
+    {showSuccessModal && (
+      <div className="success-modal-backdrop">
+        <div className="success-modal-content">
+          <div className="success-icon-wrapper">
+            <CheckCircle size={48} />
+          </div>
+          <h3>Submission Successful!</h3>
+          <p>The unloading record has been saved. Please note the Unique IDs below.</p>
+          
+          <div className="vendor-id-list">
+            {submittedVendors.map((vendor, idx) => (
+              <div key={idx} className="vendor-id-item">
+                <span className="vendor-id-name">{vendor.vendorName}</span>
+                <span className="vendor-id-badge">{vendor.vendorId}</span>
+              </div>
+            ))}
+          </div>
+          
+          <button 
+            className="btn btn-primary w-full"
+            style={{ padding: '1rem', borderRadius: '12px', fontWeight: '800' }}
+            onClick={() => {
+              setShowSuccessModal(false);
+              onSuccess && onSuccess();
+              navigate('/records');
+            }}
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+);
 };
 
 export default UnloadingForm;

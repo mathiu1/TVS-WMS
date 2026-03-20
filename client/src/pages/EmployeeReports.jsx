@@ -197,9 +197,6 @@ const EmployeeReports = () => {
                   <div className="stat-pill blue">
                     <span>{emp.totalUnloads} unloads</span>
                   </div>
-                  <div className="stat-pill green">
-                    <span>{emp.totalParts} parts</span>
-                  </div>
                 </div>
 
                 <div className="navigation-hint">

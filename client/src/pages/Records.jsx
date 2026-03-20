@@ -16,17 +16,19 @@ import {
   ZoomOut,
   RotateCw,
   RefreshCcw,
+  Truck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UnloadingForm from './UnloadingForm';
 
-const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
+const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
   const [records, setRecords] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
+  const [activeScope, setActiveScope] = useState(scope);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [editRecord, setEditRecord] = useState(null);
   const [deleteConfirmRecord, setDeleteConfirmRecord] = useState(null);
@@ -38,7 +40,8 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
     rotate: 0,
     position: { x: 0, y: 0 },
     isDragging: false,
-    dragStart: { x: 0, y: 0 }
+    dragStart: { x: 0, y: 0 },
+    touchStart: { x: 0, y: 0 } // Add for swipe detection
   });
   const [stats, setStats] = useState({ today: 0, week: 0, month: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
@@ -81,13 +84,19 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   };
 
   const handleDragStart = (e) => {
-    if (lightbox.zoom <= 1) return;
     const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
     const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+    if (lightbox.zoom <= 1 && e.type === 'touchstart') {
+      // Don't prevent default yet, we need to see if it's a click or swipe
+    } else {
+      // Zoomed in, moving the image
+    }
     
     setLightbox(p => ({
       ...p,
       isDragging: true,
+      touchStart: { x: clientX, y: clientY },
       dragStart: { 
         x: clientX - p.position.x, 
         y: clientY - p.position.y 
@@ -96,8 +105,13 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   };
 
   const handleDragMove = (e) => {
-    if (!lightbox.isDragging || lightbox.zoom <= 1) return;
-    e.preventDefault();
+    if (!lightbox.isDragging) return;
+    
+    // Always prevent default on touch to stop background scrolling/jumping
+    if (e.type === 'touchmove') e.preventDefault();
+    
+    if (lightbox.zoom <= 1) return; // For zoom 1, we only care about handleDragEnd for swipe logic
+
     const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
     const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
 
@@ -110,19 +124,27 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
     }));
   };
 
-  const handleDragEnd = () => {
+  const handleDragEnd = (e) => {
+    if (lightbox.zoom <= 1 && e.type === 'touchend') {
+      const touchEndX = e.changedTouches[0].clientX;
+      const diffX = lightbox.touchStart.x - touchEndX;
+      if (Math.abs(diffX) > 50) {
+        if (diffX > 0) lightboxNext();
+        else lightboxPrev();
+      }
+    }
     setLightbox(p => ({ ...p, isDragging: false }));
   };
 
   useEffect(() => {
     fetchRecords();
     fetchStats();
-  }, [startDate, endDate, searchFilter, pagination.page, scope]);
+  }, [startDate, endDate, searchFilter, pagination.page, activeScope]);
 
   const fetchStats = async () => {
     setStatsLoading(true);
     try {
-      const res = await unloadingAPI.getStats({ scope });
+      const res = await unloadingAPI.getStats({ scope: activeScope });
       setStats(res.data.stats);
     } catch (err) {
       console.error('Failed to load stats');
@@ -134,10 +156,10 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const params = { page: pagination.page, limit: 15, scope };
+      const params = { page: pagination.page, limit: 15, scope: activeScope };
       if (startDate) params.startDate = startDate;
       if (endDate) params.endDate = endDate;
-      if (searchFilter) params.invoiceNumber = searchFilter;
+      if (searchFilter) params.vehicleNumber = searchFilter;
 
       const res = await unloadingAPI.getAll(params);
       setRecords(res.data.data);
@@ -174,7 +196,7 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
     e.preventDefault();
     try {
       const res = await unloadingAPI.update(editRecord._id, {
-        invoiceNumber: editRecord.invoiceNumber,
+        vehicleNumber: editRecord.vehicleNumber,
         locationName: editRecord.locationName,
       });
       toast.success('Record updated successfully');
@@ -215,14 +237,7 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
     setPagination((p) => ({ ...p, page: 1 }));
   };
 
-  if (loading && records.length === 0) {
-    return (
-      <div className="loader-container">
-        <div className="loader-spinner" />
-        <p>Loading records...</p>
-      </div>
-    );
-  }
+  // Removed top-level loading check to prevent search input from losing focus
 
   return (
     <div className="page-container">
@@ -233,13 +248,35 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
           </div>
           <div className="header-text">
             <h1>{title}</h1>
-            <p>Browse unloading records with proof images</p>
+            <p>{activeScope === 'mine' ? 'Reviewing your personal unloading contributions' : 'Browse overall unloading records with proof images'}</p>
           </div>
+        </div>
+
+        {/* Scope Toggle - New Option */}
+        <div className="view-toggle-modern">
+          <button 
+            className={`toggle-btn ${activeScope === 'all' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveScope('all');
+              setPagination(p => ({ ...p, page: 1 }));
+            }}
+          >
+            All Reports
+          </button>
+          <button 
+            className={`toggle-btn ${activeScope === 'mine' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveScope('mine');
+              setPagination(p => ({ ...p, page: 1 }));
+            }}
+          >
+            My Reports
+          </button>
         </div>
       </div>
 
-      {/* Stats Cards - Only for My Records */}
-      {scope === 'me' && (
+      {/* Stats Cards - Now visible when My Records is active */}
+      {activeScope === 'mine' && (
         <div className="stats-grid">
           <div className="stats-card">
             <div className="stats-icon today"><Calendar size={20} /></div>
@@ -271,9 +308,9 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
           <div className="input-group filter-search">
             <Search size={18} className="input-icon" />
             <input
-              id="search-invoice"
+              id="search-vehicle"
               type="text"
-              placeholder="Search by invoice number..."
+              placeholder="Search by vehicle, vendor, employee or unique id..."
               value={searchFilter}
               onChange={(e) => {
                 setSearchFilter(e.target.value);
@@ -342,8 +379,13 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
         </div>
       </div>
 
-      {/* Records Table */}
-      {records.length === 0 ? (
+      {/* Records Table Spinner/Empty State */}
+      {(loading && records.length === 0) ? (
+        <div className="loader-container" style={{ minHeight: '300px' }}>
+          <div className="loader-spinner" />
+          <p>Loading records...</p>
+        </div>
+      ) : records.length === 0 ? (
         <div className="empty-state">
           <ClipboardList size={48} />
           <p>No records found.</p>
@@ -354,63 +396,133 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
             <div className="table-wrapper">
               <table className="data-table records-table">
                 <thead>
-                  <tr>
-                    <th>Invoice</th>
-                    <th>Location</th>
-                    <th>Employee</th>
-                    <th>Parts</th>
-                    <th>Images</th>
-                    <th>Date</th>
-                  </tr>
+                  {scope === 'all' ? (
+                    <tr>
+                      <th>Unique ID</th>
+                      <th>Vendor Name</th>
+                      <th>Location</th>
+                      <th>Employee</th>
+                      <th>Invoices</th>
+                      <th>Parts</th>
+                      <th>Images</th>
+                      <th>Date</th>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <th>Vehicle</th>
+                      {scope !== 'me' && <th>Location</th>}
+                      {scope !== 'me' && <th>Employee</th>}
+                      <th>Vendors</th>
+                      <th>Images</th>
+                      <th>Date</th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody>
-                  {records.map((record) => (
-                    <tr 
-                      key={record._id} 
-                      className="clickable-row" 
-                      onClick={() => setSelectedRecord(record)}
-                      title="Click to view full record"
-                    >
-                      <td data-label="Invoice">
-                        <span className="record-invoice-cell">
-                          <FileText size={14} />
-                          #{record.invoiceNumber}
-                        </span>
-                      </td>
-                      <td data-label="Location">
-                        <span className="record-location-cell">
-                          <MapPin size={13} />
-                          {record.locationName}
-                        </span>
-                      </td>
-                      <td data-label="Employee">{record.employee?.name || 'N/A'}</td>
-                      <td data-label="Parts">
-                        <span className="badge badge-blue">{record.parts?.length || 0}</span>
-                      </td>
-                      <td data-label="Images">
-                        {record.images?.length > 0 ? (
-                          <span
-                            className="badge badge-img-count"
-                            onClick={() => setSelectedRecord(record)}
-                            title="View images"
-                          >
-                            {record.images.length}
+                  {records.map((record) => {
+                    if (scope === 'all') {
+                      return record.vendors?.map((vendor, vIdx) => (
+                        <tr 
+                          key={`${record._id}-${vIdx}`} 
+                          className="clickable-row" 
+                          onClick={() => setSelectedRecord(record)}
+                          title="Click to view full record"
+                        >
+                          <td data-label="Unique ID">
+                            <span className="vendor-id-badge-inline" style={{ margin: 0 }}>
+                              {vendor.vendorId || '—'}
+                            </span>
+                          </td>
+                          <td data-label="Vendor Name">{vendor.vendorName || '—'}</td>
+                          <td data-label="Location">
+                            <span className="record-location-cell">
+                              <MapPin size={13} />
+                              {vendor.storageLocation || '—'}
+                            </span>
+                          </td>
+                          <td data-label="Employee">{record.employee?.name || 'N/A'}</td>
+                          <td data-label="Invoices">
+                            <span className="badge badge-blue">{vendor.invoiceCount || 0}</span>
+                          </td>
+                          <td data-label="Parts">
+                            <span className="badge badge-blue">{vendor.partsCount || 0}</span>
+                          </td>
+                          <td data-label="Images">
+                            {(vendor.images?.length || 0) > 0 ? (
+                              <span className="badge badge-img-count">
+                                {vendor.images.length}
+                              </span>
+                            ) : (
+                              <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
+                            )}
+                          </td>
+                          <td data-label="Date">
+                            <span className="record-date-cell">
+                              {new Date(record.createdAt).toLocaleDateString('en-IN', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          </td>
+                        </tr>
+                      ));
+                    }
+
+                    // Original row for 'My Records' or others
+                    return (
+                      <tr 
+                        key={record._id} 
+                        className="clickable-row" 
+                        onClick={() => setSelectedRecord(record)}
+                        title="Click to view full record"
+                      >
+                        <td data-label="Vehicle">
+                          <span className="record-invoice-cell">
+                            <Truck size={14} />
+                            {record.vehicleNumber}
                           </span>
-                        ) : (
-                          <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
+                        </td>
+                        {scope !== 'me' && (
+                           <td data-label="Location">
+                            <span className="record-location-cell">
+                              <MapPin size={13} />
+                              {record.locationName || 'Main Gate'}
+                            </span>
+                          </td>
                         )}
-                      </td>
-                      <td data-label="Date">
-                        <span className="record-date-cell">
-                          {new Date(record.createdAt).toLocaleDateString('en-IN', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                        {scope !== 'me' && <td data-label="Employee">{record.employee?.name || 'N/A'}</td>}
+                        <td data-label="Vendors">
+                          <span className="badge badge-blue">{record.vendors?.length || 0}</span>
+                        </td>
+                        <td data-label="Images">
+                          {(() => {
+                            const totalImgs = record.vendors?.reduce((sum, v) => sum + (v.images?.length || 0), 0) || 0;
+                            return totalImgs > 0 ? (
+                              <span
+                                className="badge badge-img-count"
+                                onClick={() => setSelectedRecord(record)}
+                                title="View images"
+                              >
+                                {totalImgs}
+                              </span>
+                            ) : (
+                              <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
+                            );
+                          })()}
+                        </td>
+                        <td data-label="Date">
+                          <span className="record-date-cell">
+                            {new Date(record.createdAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -422,19 +534,45 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
               <button
                 onClick={() => handlePageChange(pagination.page - 1)}
                 disabled={pagination.page === 1}
-                className="btn btn-sm btn-secondary"
+                className="btn btn-sm btn-secondary pagination-btn-prevnext"
               >
-                <ChevronLeft size={16} /> Prev
+                <ChevronLeft size={16} /> <span className="hide-mobile">Prev</span>
               </button>
-              <span className="pagination-info">
-                Page {pagination.page} of {pagination.pages}
-              </span>
+              
+              <div className="pagination-numbers">
+                {Array.from({ length: pagination.pages }, (_, i) => i + 1)
+                  .filter(p => {
+                    // Show current page, and up to 2 pages before and after
+                    // to keep a maximum of 5 buttons (including first/last if logic allows)
+                    if (pagination.pages <= 5) return true;
+                    if (p === 1 || p === pagination.pages) return true;
+                    if (Math.abs(p - pagination.page) <= 1) return true;
+                    return false;
+                  })
+                  .map((p, idx, arr) => {
+                    const elements = [];
+                    if (idx > 0 && arr[idx - 1] !== p - 1) {
+                      elements.push(<span key={`ellipsis-${p}`} className="pagination-ellipsis">...</span>);
+                    }
+                    elements.push(
+                      <button
+                        key={p}
+                        onClick={() => handlePageChange(p)}
+                        className={`pagination-number ${pagination.page === p ? 'active' : ''}`}
+                      >
+                        {p}
+                      </button>
+                    );
+                    return elements;
+                  })}
+              </div>
+
               <button
                 onClick={() => handlePageChange(pagination.page + 1)}
                 disabled={pagination.page === pagination.pages}
-                className="btn btn-sm btn-secondary"
+                className="btn btn-sm btn-secondary pagination-btn-prevnext"
               >
-                Next <ChevronRight size={16} />
+                <span className="hide-mobile">Next</span> <ChevronRight size={16} />
               </button>
             </div>
           )}
@@ -446,7 +584,7 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
         <div className="modal-overlay" onClick={() => setEditRecord(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Edit Record #{editRecord.invoiceNumber}</h3>
+              <h3>Edit Record {editRecord.vehicleNumber}</h3>
               <button className="btn-icon" onClick={() => setEditRecord(null)}>
                 <X size={20} />
               </button>
@@ -502,10 +640,9 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
               <X size={20} />
             </button>
 
-            <h2>Invoice #{selectedRecord.invoiceNumber}</h2>
+            <h2>Vehicle {selectedRecord.vehicleNumber}</h2>
             <div className="modal-details">
-              <p><strong>Location:</strong> {selectedRecord.locationName}</p>
-              <p><strong>Employee:</strong> {selectedRecord.employee?.name}</p>
+              <p><strong>Unloading Agent:</strong> {selectedRecord.employee?.name}</p>
               <p><strong>Date:</strong> {new Date(selectedRecord.createdAt).toLocaleString('en-IN')}</p>
             </div>
 
@@ -513,14 +650,22 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
               <div className="modal-actions-row" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem', background: 'rgba(0,0,0,0.02)', borderRadius: '12px' }}>
                 <button 
                   className="btn btn-secondary btn-sm" 
-                  onClick={(e) => { e.stopPropagation(); setEditRecord(selectedRecord); }}
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setSelectedRecord(null); // Close detail modal
+                    setEditRecord(selectedRecord); 
+                  }}
                   style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
                   <Edit size={14} /> Edit Record
                 </button>
                 <button 
                   className="btn btn-danger btn-sm" 
-                  onClick={(e) => { e.stopPropagation(); handleDelete(selectedRecord._id); }}
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setSelectedRecord(null); // Close detail modal
+                    handleDelete(selectedRecord._id); 
+                  }}
                   style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
                   <Trash2 size={14} /> Delete Record
@@ -528,40 +673,61 @@ const Records = ({ scope = 'all', title = 'Unloading Records' }) => {
               </div>
             )}
 
-            <h3>Parts ({selectedRecord.parts?.length})</h3>
+            <h3>Vendors & Inventory</h3>
             <div className="table-wrapper">
               <table className="data-table compact">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Part Number</th>
-                    <th>Qty</th>
+                    <th>Unique ID</th>
+                    <th>Vendor Name</th>
+                    <th>Storage Location</th>
+                    <th>Invoices</th>
+                    <th>Parts Count</th>
+                    <th>Photos</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedRecord.parts?.map((part, i) => (
-                    <tr key={i}>
+                  {selectedRecord.vendors?.map((v, i) => (
+                    <tr 
+                      key={i} 
+                      className={v.images?.length > 0 ? "clickable-row" : ""} 
+                      onClick={() => v.images?.length > 0 && openLightbox(v.images, 0)}
+                      title={v.images?.length > 0 ? "Click to view images" : ""}
+                    >
                       <td>{i + 1}</td>
-                      <td>{part.partNumber || '—'}</td>
-                      <td>{part.quantity}</td>
+                      <td>
+                        {v.vendorId ? (
+                          <span className="vendor-id-badge-inline" style={{ margin: 0 }}>
+                            {v.vendorId}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td>{v.vendorName || '—'}</td>
+                      <td>{v.storageLocation || '—'}</td>
+                      <td>{v.invoiceCount}</td>
+                      <td>{v.partsCount}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          {v.images?.map((img, imgIdx) => (
+                            <img 
+                              key={imgIdx}
+                              src={img} 
+                              alt="Proof"
+                              className="table-thumb"
+                              onClick={() => openLightbox([img], 0)}
+                              style={{ width: '32px', height: '32px', borderRadius: '4px', cursor: 'pointer', objectFit: 'cover' }}
+                            />
+                          ))}
+                          {(!v.images || v.images.length === 0) && <span style={{ color: '#94a3b8' }}>No Photos</span>}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
 
-            <h3>Proof Images ({selectedRecord.images?.length})</h3>
-            <div className="modal-images">
-              {selectedRecord.images?.map((img, i) => (
-                <img
-                  key={i}
-                  src={img}
-                  alt={`Proof ${i + 1}`}
-                  className="modal-image"
-                  onClick={() => openLightbox(selectedRecord.images, i)}
-                />
-              ))}
-            </div>
           </div>
         </div>
       )}

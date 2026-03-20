@@ -24,6 +24,7 @@ import {
   Trash2,
   ShieldAlert,
   AlertTriangle,
+  Truck,
 } from 'lucide-react';
 
 const EmployeeDetail = () => {
@@ -50,7 +51,8 @@ const EmployeeDetail = () => {
     rotate: 0,
     position: { x: 0, y: 0 },
     isDragging: false,
-    dragStart: { x: 0, y: 0 }
+    dragStart: { x: 0, y: 0 },
+    touchStart: { x: 0, y: 0 }
   });
 
   useEffect(() => {
@@ -125,10 +127,10 @@ const EmployeeDetail = () => {
     setIsDeleting(true);
     try {
       await authAPI.deleteUser(employeeId);
-      toast.success('User and associated records deleted successfully.');
+      toast.success('User account deactivated. Historical records preserved.');
       navigate('/employee-reports');
     } catch (err) {
-      const msg = err.response?.data?.message || 'Failed to delete user.';
+      const msg = err.response?.data?.message || 'Failed to deactivate user.';
       toast.error(msg);
     } finally {
       setIsDeleting(false);
@@ -188,26 +190,43 @@ const EmployeeDetail = () => {
   }));
 
   const handleDragStart = (e) => {
-    if (lightbox.zoom <= 1) return;
     const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
     const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+    if (lightbox.zoom <= 1 && e.type === 'touchstart') {
+      // Don't prevent default yet, we need to see if it's a click or swipe
+    } else {
+      // Zoomed in, moving the image
+    }
     
     setLightbox(p => ({
       ...p,
       isDragging: true,
-      dragStart: { x: clientX - p.position.x, y: clientY - p.position.y }
+      touchStart: { x: clientX, y: clientY },
+      dragStart: { 
+        x: clientX - p.position.x, 
+        y: clientY - p.position.y 
+      }
     }));
   };
 
   const handleDragMove = (e) => {
-    if (!lightbox.isDragging || lightbox.zoom <= 1) return;
-    e.preventDefault();
+    if (!lightbox.isDragging) return;
+    
+    // Always prevent default on touch to stop background scrolling/jumping
+    if (e.type === 'touchmove') e.preventDefault();
+    
+    if (lightbox.zoom <= 1) return; // For zoom 1, we only care about handleDragEnd for swipe logic
+
     const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
     const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
 
     setLightbox(p => ({
       ...p,
-      position: { x: clientX - p.dragStart.x, y: clientY - p.dragStart.y }
+      position: {
+        x: clientX - p.dragStart.x,
+        y: clientY - p.dragStart.y
+      }
     }));
   };
 
@@ -287,8 +306,8 @@ const EmployeeDetail = () => {
             onClick={() => setShowDeleteModal(true)}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
           >
-            <Trash2 size={16} />
-            <span>Delete Account</span>
+            <ShieldAlert size={16} />
+            <span>Deactivate Account</span>
           </button>
         </div>
       </div>
@@ -385,34 +404,35 @@ const EmployeeDetail = () => {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Invoice</th>
-                  <th>Location</th>
+                  <th>Vehicle</th>
+                  <th>Vendors</th>
+                  <th>Invoices</th>
                   <th>Parts</th>
-                  <th>Images</th>
                   <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {employee?.records?.map((rec, i) => (
-                  <tr
-                    key={rec._id}
-                    className="clickable-row"
-                    onClick={() => openRecord(rec._id)}
-                  >
-                    <td>{i + 1}</td>
-                    <td>
-                      <FileText size={14} className="inline-icon" />
-                      #{rec.invoiceNumber}
-                    </td>
-                    <td>{rec.locationName}</td>
-                    <td>{rec.parts?.length || 0}</td>
-                    <td>{rec.images?.length || 0}</td>
+                  {employee?.records?.map((rec, i) => (
+                    <tr
+                      key={rec._id}
+                      className="clickable-row"
+                      onClick={() => openRecord(rec._id)}
+                    >
+                      <td>{i + 1}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                          <Truck size={14} className="inline-icon" style={{ flexShrink: 0 }} />
+                          <span style={{ fontWeight: '600' }}>{rec.vehicleNumber}</span>
+                        </div>
+                      </td>
+                      <td><span className="badge badge-blue">{rec.vendorCount || 0}</span></td>
+                    <td><span className="badge badge-blue">{rec.invoiceCount || 0}</span></td>
+                    <td><span className="badge badge-blue">{rec.partsCount || 0}</span></td>
                     <td>
                       {new Date(rec.createdAt).toLocaleDateString('en-IN', {
                         day: '2-digit',
                         month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                        year: 'numeric',
                       })}
                     </td>
                   </tr>
@@ -426,47 +446,77 @@ const EmployeeDetail = () => {
       {/* Lightbox & Modal (Same as Reports) */}
       {selectedRecord && (
         <div className="modal-overlay" onClick={() => setSelectedRecord(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedRecord(null)}>
+          <div className="modal-content record-detail-modal" style={{ width: '95%', maxWidth: '850px', padding: '1.5rem' }} onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedRecord(null)} style={{ top: '0.75rem', right: '0.75rem' }}>
               <X size={20} />
             </button>
-            <h2>Invoice #{selectedRecord.invoiceNumber}</h2>
-            <div className="modal-details">
-              <p><strong>Location:</strong> {selectedRecord.locationName}</p>
-              <p><strong>Date:</strong> {new Date(selectedRecord.createdAt).toLocaleString('en-IN')}</p>
+            <h2 className="modal-title-responsive" style={{ color: 'var(--accent-blue)', marginBottom: '1.25rem', fontSize: 'clamp(1.2rem, 4vw, 1.5rem)', paddingRight: '40px' }}>
+              Vehicle {selectedRecord.vehicleNumber}
+            </h2>
+            
+            <div className="modal-details-responsive" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 24px', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              <p style={{ margin: 0 }}><strong>Employee:</strong> {selectedRecord.employee?.name || 'mathi'}</p>
+              <p style={{ margin: 0 }}><strong>Date:</strong> {new Date(selectedRecord.createdAt).toLocaleString('en-IN')}</p>
             </div>
-            <h3>Parts ({selectedRecord.parts?.length})</h3>
+
+            <h3 style={{ fontSize: '1rem', fontWeight: '600', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+              Vendors & Inventory
+            </h3>
+            
             <div className="table-wrapper">
               <table className="data-table compact">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Part Number</th>
-                    <th>Qty</th>
+                    <th>UNIQUE ID</th>
+                    <th>VENDOR NAME</th>
+                    <th>STORAGE LOCATION</th>
+                    <th>INVOICES</th>
+                    <th>PARTS COUNT</th>
+                    <th>PHOTOS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedRecord.parts?.map((part, i) => (
-                    <tr key={i}>
+                  {selectedRecord.vendors?.map((vendor, i) => (
+                    <tr 
+                      key={i} 
+                      className="clickable-row" 
+                      onClick={() => vendor.images?.length > 0 && openLightbox(vendor.images, 0)}
+                    >
                       <td>{i + 1}</td>
-                      <td>{part.partNumber || '—'}</td>
-                      <td>{part.quantity}</td>
+                      <td>
+                        <span className="badge badge-blue" style={{ borderRadius: '6px' }}>
+                          {vendor.vendorId || '—'}
+                        </span>
+                      </td>
+                      <td>{vendor.vendorName}</td>
+                      <td>{vendor.storageLocation || '—'}</td>
+                      <td>{vendor.invoiceCount}</td>
+                      <td>{vendor.partsCount}</td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'nowrap', minWidth: 'max-content' }}>
+                          {vendor.images?.map((img, imgIdx) => (
+                            <img
+                              key={imgIdx}
+                              src={img}
+                              alt={`Proof ${imgIdx + 1}`}
+                              style={{ 
+                                width: '32px', 
+                                height: '32px', 
+                                objectFit: 'cover', 
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                                border: '1px solid var(--glass-border)'
+                              }}
+                              onClick={() => openLightbox(vendor.images, imgIdx)}
+                            />
+                          ))}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-            <h3>Proof Images ({selectedRecord.images?.length})</h3>
-            <div className="modal-images">
-              {selectedRecord.images?.map((img, i) => (
-                <img
-                  key={i}
-                  src={img}
-                  alt={`Proof ${i + 1}`}
-                  className="modal-image"
-                  onClick={() => openLightbox(selectedRecord.images, i)}
-                />
-              ))}
             </div>
           </div>
         </div>
@@ -592,10 +642,10 @@ const EmployeeDetail = () => {
           <div className="modal-content danger-modal">
             <div className="modal-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div className="summary-icon red" style={{ width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(220, 38, 38, 0.15)', color: '#dc2626' }}>
+                <div className="summary-icon red" style={{ width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
                   <ShieldAlert size={20} />
                 </div>
-                <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#dc2626' }}>Safe Delete User</h2>
+                <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#ef4444' }}>Deactivate Account</h2>
               </div>
               <button 
                 className="modal-close" 
@@ -607,17 +657,17 @@ const EmployeeDetail = () => {
             </div>
 
             <div className="modal-body danger-content" style={{ marginBottom: '2rem' }}>
-              <div className="warning-banner" style={{ background: 'rgba(220, 38, 38, 0.05)', borderLeft: '4px solid #dc2626', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#dc2626', marginBottom: '0.5rem', fontWeight: '700' }}>
-                  <AlertTriangle size={18} />
-                  <span>CRITICAL WARNING</span>
+              <div className="warning-banner" style={{ background: 'rgba(59, 130, 246, 0.05)', borderLeft: '4px solid #3b82f6', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', color: '#3b82f6', marginBottom: '0.5rem', fontWeight: '700' }}>
+                  <TrendingUp size={18} />
+                  <span>DATA PRESERVATION ACTIVE</span>
                 </div>
                 <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748b' }}>
-                  This action is <strong>permanent</strong> and cannot be undone. All unloading history for this user will also be deleted.
+                  Deactivating this user will block their login access. However, all historical unloading records will be <strong>preserved</strong> for reporting.
                 </p>
               </div>
               <p style={{ fontSize: '1rem', color: 'var(--text-primary)', textAlign: 'center' }}>
-                Are you sure you want to delete <strong>{employee?.name}</strong>?
+                Are you sure you want to deactivate <strong>{employee?.name}</strong>?
               </p>
             </div>
 
@@ -633,14 +683,14 @@ const EmployeeDetail = () => {
                 className="btn btn-danger" 
                 onClick={handleDeleteUser}
                 disabled={isDeleting}
-                style={{ flex: 1, padding: '0.85rem', borderRadius: '12px', background: '#dc2626', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ flex: 1, padding: '0.85rem', borderRadius: '12px', background: '#ef4444', border: 'none', color: 'white', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
               >
                 {isDeleting ? (
                   <RefreshCcw size={18} className="spin-slow" />
                 ) : (
                   <>
-                    <Trash2 size={18} />
-                    Confirm Delete
+                    <ShieldAlert size={18} />
+                    Confirm Deactivate
                   </>
                 )}
               </button>

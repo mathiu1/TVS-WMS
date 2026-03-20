@@ -77,6 +77,14 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // Check if user is active
+    if (user.isActive === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact an administrator.',
+      });
+    }
+
     // Generate JWT
     const token = jwt.sign(
       { id: user._id, role: user.role },
@@ -176,15 +184,31 @@ router.delete('/users/:id', auth, authorize('manager'), async (req, res) => {
       });
     }
 
-    // Delete associated unloading records
-    const UnloadingRecord = require('../models/UnloadingRecord');
-    await UnloadingRecord.deleteMany({ employee: req.params.id });
-
-    await user.deleteOne();
+    // Deactivate user instead of hard-deleting
+    user.isActive = false;
+    await user.save();
 
     res.status(200).json({
       success: true,
-      message: 'User and associated records deleted successfully.',
+      message: 'User account deactivated successfully. Historical records have been preserved.',
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   GET /api/auth/users
+// @desc    Get all users (Manager only)
+// @access  Private (Manager)
+router.get('/users', auth, authorize('manager'), async (req, res) => {
+  try {
+    const users = await User.find({ isActive: { $ne: false } }).select('-password').sort({ name: 1 });
+    res.status(200).json({
+      success: true,
+      data: users,
     });
   } catch (error) {
     res.status(500).json({

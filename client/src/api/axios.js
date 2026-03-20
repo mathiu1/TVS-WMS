@@ -56,6 +56,7 @@ export const authAPI = {
   getMe: () => API.get('/auth/me'),
   updateRole: (id, role) => API.patch(`/auth/users/${id}/role`, { role }),
   deleteUser: (id) => API.delete(`/auth/users/${id}`),
+  getUsers: () => API.get('/auth/users'),
 };
 
 // ===== UNLOADING API =====
@@ -72,7 +73,9 @@ export const unloadingAPI = {
 export const analyticsAPI = {
   getDailyReport: (params) => API.get('/analytics/daily-report', { params }),
   getSummary: () => API.get('/analytics/summary'),
+  getDashboardStats: (params) => API.get('/analytics/dashboard-stats', { params }),
   getEmployeeReports: (params) => API.get('/analytics/employee-reports', { params }),
+  exportExcel: (params) => API.get('/analytics/export-excel', { params, responseType: 'blob' }),
 };
 
 export default API;

@@ -31,12 +31,13 @@ const Sidebar = () => {
   const employeeLinks = [
     { to: '/unloading', icon: PackagePlus, label: 'Unloading' },
     { to: '/my-records', icon: ClipboardList, label: 'My Records' },
-    { to: '/all-records', icon: Globe, label: 'All Records' },
+    { to: '/all-records', icon: Globe, label: 'Unloading Reports' },
   ];
 
   const managerLinks = [
     { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/all-records', icon: Globe, label: 'All Records' },
+    { to: '/unloading', icon: PackagePlus, label: 'Unloading' },
+    { to: '/all-records', icon: Globe, label: 'Unloading Reports' },
     { to: '/employee-reports', icon: Users, label: 'Employees List' },
   ];
 
