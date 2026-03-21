@@ -40,8 +40,8 @@ API.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem('wms_token');
       localStorage.removeItem('wms_user');
-      // Redirect to login if token is invalid
-      if (window.location.pathname !== '/login') {
+      // Redirect to login if token is invalid, but not if on guest page
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/guest') {
         window.location.href = '/login';
       }
     }
@@ -67,6 +67,8 @@ export const unloadingAPI = {
   update: (id, data) => API.put(`/unloading/${id}`, data),
   delete: (id) => API.delete(`/unloading/${id}`),
   getStats: (params) => API.get('/unloading/stats', { params }),
+  publicSearch: (params) => API.get('/unloading/public/search', { params }),
+  publicGetById: (id) => API.get(`/unloading/public/${id}`),
 };
 
 // ===== ANALYTICS API =====

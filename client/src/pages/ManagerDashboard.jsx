@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { analyticsAPI, unloadingAPI, authAPI } from '../api/axios';
+import toast from 'react-hot-toast';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -47,17 +48,19 @@ import {
   Pie,
   LabelList
 } from 'recharts';
-import toast from 'react-hot-toast';
+import ModernLoader from '../components/ModernLoader';
 
 const ManagerDashboard = () => {
-  const [summary, setSummary] = useState({ totalRecords: 0, todayRecords: 0, thisWeekRecords: 0, activeEmployees: 0 });
-  const [chartData, setChartData] = useState({ 
-    weeklyTrends: [], 
+  const [summary, setSummary] = useState({ totalRecords: 0, todayRecords: 0, thisWeekRecords: 0, activeEmployees: 0, totalInvoices: 0, todayInvoices: 0, thisMonthInvoices: 0, thisWeekInvoices: 0 });
+  const [chartData, setChartData] = useState({
+    weeklyTrends: [],
     employeePerformance: [],
     locationDistribution: [],
     hourlyActivity: [],
     shiftPerformance: [],
-    totalParts: 0
+    totalParts: 0,
+    totalInvoices: 0,
+    totalRecords: 0
   });
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -165,7 +168,7 @@ const ManagerDashboard = () => {
         } else if (exportFilters.range === 'week') start.setDate(now.getDate() - 7);
         else if (exportFilters.range === 'month') start = new Date(now.getFullYear(), now.getMonth(), 1);
         else if (exportFilters.range === 'all') start = new Date(0);
-        
+
         if (exportFilters.range !== 'all') params.startDate = start.toISOString();
       }
 
@@ -174,7 +177,7 @@ const ManagerDashboard = () => {
       }
 
       const response = await analyticsAPI.exportExcel(params);
-      
+
       // Handle file download
       const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
       const url = window.URL.createObjectURL(blob);
@@ -185,7 +188,7 @@ const ManagerDashboard = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      
+
       toast.success('Excel report generated successfully!');
       setIsExportModalOpen(false);
     } catch (err) {
@@ -199,7 +202,7 @@ const ManagerDashboard = () => {
   const getSmartInsights = () => {
     const insights = [];
     if (chartData.hourlyActivity && chartData.hourlyActivity.length > 0) {
-      const peak = [...chartData.hourlyActivity].sort((a,b) => b.count - a.count)[0];
+      const peak = [...chartData.hourlyActivity].sort((a, b) => b.count - a.count)[0];
       if (peak && peak.count > 0) {
         insights.push({ type: 'peak', text: `Peak activity spike detected at ${peak.hour}:00. Maintain high staffing.` });
       }
@@ -211,7 +214,10 @@ const ManagerDashboard = () => {
       }
     }
     if (chartData.totalParts > 2000) {
-      insights.push({ type: 'vol', text: `Handling intensive inventory load: ${chartData.totalParts.toLocaleString()} parts in this period.` });
+      insights.push({ type: 'vol', text: `Handling intensive inventory load: ${(chartData.totalParts || 0).toLocaleString()} parts in this period.` });
+    }
+    if ((chartData.totalInvoices || 0) > 500) {
+      insights.push({ type: 'vol', text: `High invoice volume detected: ${(chartData.totalInvoices || 0).toLocaleString()} invoices processed.` });
     }
     return insights.length > 0 ? insights : [{ type: 'info', text: 'All operational metrics are currently balanced.' }];
   };
@@ -318,12 +324,7 @@ const ManagerDashboard = () => {
   };
 
   if (loading && !summary.totalRecords) {
-    return (
-      <div className="loader-container">
-        <div className="loader-spinner" />
-        <p>Initializing Analytics...</p>
-      </div>
-    );
+    return <ModernLoader message="Initializing Analytics..." fullPage={true} />;
   }
 
   return (
@@ -340,7 +341,7 @@ const ManagerDashboard = () => {
           </div>
         </div>
         <div className="header-actions">
-          <button 
+          <button
             className="export-btn-modern"
             onClick={() => setIsExportModalOpen(true)}
           >
@@ -351,14 +352,16 @@ const ManagerDashboard = () => {
       </div>
 
       {/* Main Stats Row */}
-      <div className="stats-row-modern four-cards">
+      <div className="stats-row-modern five-cards">
         <div className="stat-card-modern">
           <div className="card-inner">
             <div className="card-head">
               <span className="label">Today's Unloads</span>
               <div className="icon today"><Activity size={18} /></div>
             </div>
-            <div className="card-value">{summary.todayRecords}</div>
+            <div className="card-value">
+              {loading ? <ModernLoader variant="card" /> : summary.todayRecords}
+            </div>
             <div className="card-footer-text">Across all docking points</div>
           </div>
         </div>
@@ -367,18 +370,58 @@ const ManagerDashboard = () => {
           <div className="card-inner">
             <div className="card-head">
               <span className="label">
-                {activeFilter === 'all' ? 'Total Unloads' : 
-                 activeFilter === 'month' ? 'This Month' : 'This Week'}
+                {activeFilter === 'all' ? 'Total Unloads' :
+                  activeFilter === 'today' ? "Today's Unloads" :
+                    activeFilter === 'yesterday' ? "Yesterday's Unloads" :
+                      activeFilter === 'month' ? 'This Month' :
+                        activeFilter === 'week' ? 'This Week' : 'Period Unloads'}
               </span>
               <div className="icon week"><TrendingUp size={18} /></div>
             </div>
             <div className="card-value">
-              {activeFilter === 'all' ? summary.totalRecords : 
-               activeFilter === 'month' ? summary.thisMonthRecords : summary.thisWeekRecords}
+              {loading ? <ModernLoader variant="card" /> : (
+                activeFilter === 'all' ? summary.totalRecords :
+                  activeFilter === 'today' ? summary.todayRecords :
+                    (activeFilter === 'month' && !startDate) ? summary.thisMonthRecords :
+                      (activeFilter === 'week' && !startDate) ? summary.thisWeekRecords :
+                        chartData.totalRecords
+              )}
             </div>
             <div className="card-footer-text">
-              {activeFilter === 'all' ? 'Historical total performance' : 
-               activeFilter === 'month' ? 'Current month to date' : 'Current cycle performance'}
+              {activeFilter === 'all' ? 'Historical total performance' :
+                activeFilter === 'today' ? 'Activity for today' :
+                  activeFilter === 'yesterday' ? 'Activity for yesterday' :
+                    'Filtered cycle performance'}
+            </div>
+          </div>
+        </div>
+
+        <div className="stat-card-modern">
+          <div className="card-inner">
+            <div className="card-head">
+              <span className="label">
+                {activeFilter === 'all' ? 'Total Invoices' :
+                  activeFilter === 'today' ? "Today's Invoices" :
+                    activeFilter === 'yesterday' ? "Yesterday's Invoices" :
+                      activeFilter === 'month' ? 'Month Invoices' :
+                        activeFilter === 'week' ? 'Week Invoices' : 'Period Invoices'}
+              </span>
+              <div className="icon invoices"><Clipboard size={18} /></div>
+            </div>
+            <div className="card-value">
+              {loading ? <ModernLoader variant="card" /> : (
+                activeFilter === 'all' ? summary.totalInvoices :
+                  activeFilter === 'today' ? summary.todayInvoices :
+                    (activeFilter === 'month' && !startDate) ? summary.thisMonthInvoices :
+                      (activeFilter === 'week' && !startDate) ? summary.thisWeekInvoices :
+                        chartData.totalInvoices
+              )}
+            </div>
+            <div className="card-footer-text">
+              {activeFilter === 'all' ? 'Historical billing volume' :
+                activeFilter === 'today' ? 'Invoices for today' :
+                  activeFilter === 'yesterday' ? 'Invoices for yesterday' :
+                    'Filtered billing volume'}
             </div>
           </div>
         </div>
@@ -389,7 +432,9 @@ const ManagerDashboard = () => {
               <span className="label">Staff On Duty</span>
               <div className="icon employees"><Users size={18} /></div>
             </div>
-            <div className="card-value">{summary.activeEmployees}</div>
+            <div className="card-value">
+              {loading ? <ModernLoader variant="card" /> : summary.activeEmployees}
+            </div>
             <div className="card-footer-text">Verified warehouse agents</div>
           </div>
         </div>
@@ -397,10 +442,18 @@ const ManagerDashboard = () => {
         <div className="stat-card-modern">
           <div className="card-inner">
             <div className="card-head">
-              <span className="label">Total Parts</span>
+              <span className="label">
+                {activeFilter === 'all' ? 'Total Parts' :
+                  activeFilter === 'today' ? "Today's Parts" :
+                    activeFilter === 'yesterday' ? "Yesterday's Parts" :
+                      activeFilter === 'month' ? 'Month Parts' :
+                        activeFilter === 'week' ? 'Week Parts' : 'Period Parts'}
+              </span>
               <div className="icon parts-vol"><Package size={18} /></div>
             </div>
-            <div className="card-value">{(chartData.totalParts || 0).toLocaleString()}</div>
+            <div className="card-value">
+              {loading ? <ModernLoader variant="card" /> : (chartData.totalParts || 0).toLocaleString()}
+            </div>
             <div className="card-footer-text">Inventory volume handled</div>
           </div>
         </div>
@@ -415,8 +468,8 @@ const ManagerDashboard = () => {
         <div className="insights-list">
           {getSmartInsights().map((ins, i) => (
             <div key={i} className={`insight-item ${ins.type}`}>
-               <div className="insight-pulse"></div>
-               <p>{ins.text}</p>
+              <div className="insight-pulse"></div>
+              <p>{ins.text}</p>
             </div>
           ))}
         </div>
@@ -489,13 +542,15 @@ const ManagerDashboard = () => {
             <span className="chart-legend">Daily Operations</span>
           </div>
           <div className="chart-body">
-            {chartData.weeklyTrends && chartData.weeklyTrends.length > 0 ? (
+            {loading ? (
+              <ModernLoader variant="chart" />
+            ) : chartData.weeklyTrends && chartData.weeklyTrends.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <AreaChart data={chartData.weeklyTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorUnload" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.6} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -519,7 +574,7 @@ const ManagerDashboard = () => {
                   <Area
                     type="monotone"
                     dataKey="total"
-                    stroke="#3b82f6"
+                    stroke="#0ea5e9"
                     strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorUnload)"
@@ -547,13 +602,25 @@ const ManagerDashboard = () => {
             <span className="chart-legend">Efficiency Ranking</span>
           </div>
           <div className="chart-body scrollable-chart">
-            {chartData.employeePerformance && chartData.employeePerformance.length > 0 ? (
+            {loading ? (
+              <ModernLoader variant="chart" />
+            ) : chartData.employeePerformance && chartData.employeePerformance.length > 0 ? (
               <ResponsiveContainer width="100%" height={Math.max(260, chartData.employeePerformance.length * 45)}>
-                <BarChart 
-                  layout="vertical" 
-                  data={chartData.employeePerformance} 
+                <BarChart
+                  layout="vertical"
+                  data={chartData.employeePerformance}
                   margin={{ left: -15, right: 35, top: 5, bottom: 5 }}
                 >
+                  <defs>
+                    <linearGradient id="gradBest" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="5%" stopColor="#10b981" />
+                      <stop offset="95%" stopColor="#34d399" />
+                    </linearGradient>
+                    <linearGradient id="gradGood" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="5%" stopColor="#94a3b8" />
+                      <stop offset="95%" stopColor="#cbd5e1" />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                   <XAxis type="number" hide />
                   <YAxis
@@ -580,14 +647,14 @@ const ManagerDashboard = () => {
                     background={{ fill: '#f1f5f9', radius: 10 }}
                     animationDuration={1500}
                   >
-                    <LabelList 
-                      dataKey="count" 
-                      position="right" 
+                    <LabelList
+                      dataKey="count"
+                      position="right"
                       offset={8}
-                      style={{ fill: '#64748b', fontSize: '10px', fontWeight: '800' }} 
+                      style={{ fill: '#64748b', fontSize: '10px', fontWeight: '800' }}
                     />
                     {chartData.employeePerformance.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === 0 ? '#f59e0b' : '#3b82f6'} />
+                      <Cell key={`cell-${index}`} fill={index === 0 ? 'url(#gradBest)' : 'url(#gradGood)'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -611,25 +678,33 @@ const ManagerDashboard = () => {
             <span className="chart-legend">Load Heatmap</span>
           </div>
           <div className="chart-body">
-            {chartData.hourlyActivity && chartData.hourlyActivity.length > 0 ? (
-               <ResponsiveContainer width="100%" height={260}>
-                 <BarChart data={chartData.hourlyActivity}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                      dataKey="hour" 
-                      axisLine={false} 
-                      tickLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 10 }}
-                      tickFormatter={(val) => `${val}:00`}
-                    />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
-                    <Tooltip 
-                      cursor={{ fill: '#f1f5f9' }}
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
-                    />
-                    <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={20} />
-                 </BarChart>
-               </ResponsiveContainer>
+            {loading ? (
+              <ModernLoader variant="chart" />
+            ) : chartData.hourlyActivity && chartData.hourlyActivity.length > 0 ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={chartData.hourlyActivity}>
+                  <defs>
+                    <linearGradient id="gradPeak" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" />
+                      <stop offset="95%" stopColor="#a855f7" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="hour"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 10 }}
+                    tickFormatter={(val) => `${val}:00`}
+                  />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
+                  <Tooltip
+                    cursor={{ fill: '#f1f5f9' }}
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                  />
+                  <Bar dataKey="count" fill="url(#gradPeak)" radius={[4, 4, 0, 0]} barSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
             ) : (
               <div className="chart-empty-state">
                 <Clock size={40} strokeWidth={1} />
@@ -649,7 +724,9 @@ const ManagerDashboard = () => {
             <span className="chart-legend">Bay Distribution</span>
           </div>
           <div className="chart-body">
-            {chartData.locationDistribution && chartData.locationDistribution.length > 0 ? (
+            {loading ? (
+              <ModernLoader variant="chart" />
+            ) : chartData.locationDistribution && chartData.locationDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
@@ -662,14 +739,12 @@ const ManagerDashboard = () => {
                   >
                     {chartData.locationDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={[
-                        '#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', 
-                        '#06b6d4', '#84cc16', '#f97316', '#6366f1', '#d946ef',
-                        '#ec4899', '#14b8a6', '#facc15', '#a855f7', '#fb7185',
-                        '#94a3b8' // Color for 'Others' or overflow
-                      ][index % 16]} />
+                        '#0ea5e9', '#10b981', '#6366f1', '#f59e0b', '#94a3b8',
+                        '#3b82f6', '#14b8a6', '#4f46e5', '#facc15'
+                      ][index % 9]} />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
                   />
                 </PieChart>
@@ -867,7 +942,7 @@ const ManagerDashboard = () => {
                 <label>Time Period</label>
                 <div className="export-tabs">
                   {['today', 'yesterday', 'week', 'month', 'all', 'custom'].map(r => (
-                    <button 
+                    <button
                       key={r}
                       className={`export-tab ${exportFilters.range === r ? 'active' : ''}`}
                       onClick={() => setExportFilters(p => ({ ...p, range: r }))}
@@ -882,16 +957,16 @@ const ManagerDashboard = () => {
                 <div className="export-section date-range-inputs">
                   <div className="input-group">
                     <label>Start Date</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={exportFilters.start}
                       onChange={e => setExportFilters(p => ({ ...p, start: e.target.value }))}
                     />
                   </div>
                   <div className="input-group">
                     <label>End Date</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={exportFilters.end}
                       onChange={e => setExportFilters(p => ({ ...p, end: e.target.value }))}
                     />
@@ -903,7 +978,7 @@ const ManagerDashboard = () => {
                 <label>Filter by Employee</label>
                 <div className="select-wrapper">
                   <User size={16} className="select-icon" />
-                  <select 
+                  <select
                     value={exportFilters.employeeId}
                     onChange={e => setExportFilters(p => ({ ...p, employeeId: e.target.value }))}
                   >
@@ -920,8 +995,8 @@ const ManagerDashboard = () => {
               <button className="cancel-btn" onClick={() => setIsExportModalOpen(false)} disabled={exportLoading}>
                 Cancel
               </button>
-              <button 
-                className="export-btn-primary" 
+              <button
+                className="export-btn-primary"
                 onClick={handleExportExcel}
                 disabled={exportLoading}
               >

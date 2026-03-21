@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { authAPI, analyticsAPI, unloadingAPI } from '../api/axios';
+import ModernLoader from '../components/ModernLoader';
 import {
   Users,
   Calendar,
@@ -243,12 +244,7 @@ const EmployeeDetail = () => {
   };
 
   if (loading && !employee) {
-    return (
-      <div className="loader-container">
-        <div className="loader-spinner" />
-        <p>Loading employee data...</p>
-      </div>
-    );
+    return <ModernLoader message="Loading employee data..." fullPage={true} />;
   }
 
   return (
@@ -581,11 +577,7 @@ const EmployeeDetail = () => {
         </div>
       )}
 
-      {recordLoading && (
-        <div className="modal-overlay">
-          <div className="loader-spinner" />
-        </div>
-      )}
+      {recordLoading && <ModernLoader fullPage={true} message="Loading record details..." />}
       {/* Role Change Confirmation Modal */}
       {showConfirmModal && (
         <div className="modal-overlay">

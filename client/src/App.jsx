@@ -10,6 +10,7 @@ import ManagerDashboard from './pages/ManagerDashboard';
 import Records from './pages/Records';
 import EmployeeReports from './pages/EmployeeReports';
 import EmployeeDetail from './pages/EmployeeDetail';
+import GuestSearch from './pages/GuestSearch';
 import './App.css';
 
 const HomeRedirect = () => {
@@ -98,6 +99,7 @@ const AppContent = () => {
                 </ProtectedRoute>
               }
             />
+            <Route path="/guest" element={<GuestSearch />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

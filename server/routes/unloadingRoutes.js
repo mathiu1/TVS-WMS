@@ -189,10 +189,14 @@ router.get('/', auth, async (req, res) => {
       }).select('_id');
       const userIds = matchingUsers.map(u => u._id);
 
+      const isNumericSearch = /^\d+$/.test(vehicleNumber);
+      
       query.$or = [
-        { vehicleNumber: { $regex: vehicleNumber, $options: 'i' } },
         { 'vendors.vendorName': { $regex: vehicleNumber, $options: 'i' } },
-        { 'vendors.vendorId': { $regex: vehicleNumber, $options: 'i' } },
+        { 'vendors.vendorId': isNumericSearch 
+            ? { $regex: `^0*${vehicleNumber}$` } 
+            : { $regex: vehicleNumber, $options: 'i' } 
+        },
         { employee: { $in: userIds } } // Add employee search
       ];
     }
@@ -373,6 +377,62 @@ router.delete('/:id', auth, async (req, res) => {
     await record.deleteOne();
 
     res.status(200).json({ success: true, message: 'Record removed successfully.' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   GET /api/unloading/public/search
+// @desc    Public search for unloading records (No Auth)
+// @access  Public
+router.get('/public/search', async (req, res) => {
+  try {
+    const { vehicleNumber } = req.query;
+    
+    // Prevent listing all records for security/privacy
+    if (!vehicleNumber || vehicleNumber.trim().length < 2) {
+      return res.status(200).json({
+        success: true,
+        data: [],
+        message: 'Please provide a search term (min 2 chars).'
+      });
+    }
+
+    // Build query (Restrict to ID search only for public use)
+    const isNumericSearch = /^\d+$/.test(vehicleNumber);
+    const query = {
+      'vendors.vendorId': isNumericSearch 
+        ? { $regex: `^0*${vehicleNumber}$` } 
+        : { $regex: vehicleNumber, $options: 'i' }
+    };
+
+    const records = await UnloadingRecord.find(query)
+      .populate('employee', 'name') // Only return name, not email for privacy
+      .sort({ createdAt: -1 })
+      .limit(20);
+
+    res.status(200).json({
+      success: true,
+      data: records
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   GET /api/unloading/public/:id
+// @desc    Get a single unloading record publicly (No Auth)
+// @access  Public
+router.get('/public/:id', async (req, res) => {
+  try {
+    const record = await UnloadingRecord.findById(req.params.id)
+      .populate('employee', 'name');
+
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Record not found.' });
+    }
+
+    res.status(200).json({ success: true, data: record });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

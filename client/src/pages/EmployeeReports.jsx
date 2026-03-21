@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { authAPI } from '../api/axios';
+import ModernLoader from '../components/ModernLoader';
 
 const EmployeeReports = () => {
   const [employees, setEmployees] = useState([]);
@@ -78,12 +79,7 @@ const EmployeeReports = () => {
   );
 
   if (loading && employees.length === 0) {
-    return (
-      <div className="loader-container">
-        <div className="loader-spinner" />
-        <p>Loading employees...</p>
-      </div>
-    );
+    return <ModernLoader message="Loading employees..." fullPage={true} />;
   }
 
   return (

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UnloadingForm from './UnloadingForm';
+import ModernLoader from '../components/ModernLoader';
 
 const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
   const [records, setRecords] = useState([]);
@@ -32,9 +33,9 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [editRecord, setEditRecord] = useState(null);
   const [deleteConfirmRecord, setDeleteConfirmRecord] = useState(null);
-  const [lightbox, setLightbox] = useState({ 
-    open: false, 
-    images: [], 
+  const [lightbox, setLightbox] = useState({
+    open: false,
+    images: [],
     index: 0,
     zoom: 1,
     rotate: 0,
@@ -47,12 +48,12 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
   const [statsLoading, setStatsLoading] = useState(true);
 
   const openLightbox = (images, index) => {
-    setLightbox({ 
-      open: true, 
-      images, 
-      index, 
-      zoom: 1, 
-      rotate: 0, 
+    setLightbox({
+      open: true,
+      images,
+      index,
+      zoom: 1,
+      rotate: 0,
       position: { x: 0, y: 0 },
       isDragging: false,
       dragStart: { x: 0, y: 0 }
@@ -92,24 +93,24 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
     } else {
       // Zoomed in, moving the image
     }
-    
+
     setLightbox(p => ({
       ...p,
       isDragging: true,
       touchStart: { x: clientX, y: clientY },
-      dragStart: { 
-        x: clientX - p.position.x, 
-        y: clientY - p.position.y 
+      dragStart: {
+        x: clientX - p.position.x,
+        y: clientY - p.position.y
       }
     }));
   };
 
   const handleDragMove = (e) => {
     if (!lightbox.isDragging) return;
-    
+
     // Always prevent default on touch to stop background scrolling/jumping
     if (e.type === 'touchmove') e.preventDefault();
-    
+
     if (lightbox.zoom <= 1) return; // For zoom 1, we only care about handleDragEnd for swipe logic
 
     const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
@@ -216,7 +217,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
   const setQuickFilter = (type) => {
     const now = new Date();
     let start, end;
-    
+
     switch (type) {
       case 'today':
         start = new Date(now);
@@ -231,7 +232,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
       default:
         return;
     }
-    
+
     setStartDate(start.toISOString().split('T')[0]);
     setEndDate(now.toISOString().split('T')[0]);
     setPagination((p) => ({ ...p, page: 1 }));
@@ -254,7 +255,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
 
         {/* Scope Toggle - New Option */}
         <div className="view-toggle-modern">
-          <button 
+          <button
             className={`toggle-btn ${activeScope === 'all' ? 'active' : ''}`}
             onClick={() => {
               setActiveScope('all');
@@ -263,7 +264,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
           >
             All Reports
           </button>
-          <button 
+          <button
             className={`toggle-btn ${activeScope === 'mine' ? 'active' : ''}`}
             onClick={() => {
               setActiveScope('mine');
@@ -310,7 +311,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
             <input
               id="search-vehicle"
               type="text"
-              placeholder="Search by vehicle, vendor, employee or unique id..."
+              placeholder="Search by vendor, employee or unique id..."
               value={searchFilter}
               onChange={(e) => {
                 setSearchFilter(e.target.value);
@@ -320,7 +321,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
           </div>
 
           <div className="filter-quick-date">
-            <button 
+            <button
               className={`btn-tag ${startDate === new Date().toISOString().split('T')[0] ? 'active' : ''}`}
               onClick={() => setQuickFilter('today')}
             >
@@ -362,7 +363,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
 
 
           {(startDate || endDate || searchFilter) && (
-            <button 
+            <button
               className="btn-clear-filters"
               onClick={() => {
                 setStartDate('');
@@ -381,10 +382,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
 
       {/* Records Table Spinner/Empty State */}
       {(loading && records.length === 0) ? (
-        <div className="loader-container" style={{ minHeight: '300px' }}>
-          <div className="loader-spinner" />
-          <p>Loading records...</p>
-        </div>
+        <ModernLoader message="Loading records..." />
       ) : records.length === 0 ? (
         <div className="empty-state">
           <ClipboardList size={48} />
@@ -393,68 +391,145 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
       ) : (
         <>
           <div className="table-card">
-            <div className="table-wrapper">
-              <table className="data-table records-table">
-                <thead>
-                  {scope === 'all' ? (
-                    <tr>
-                      <th>Unique ID</th>
-                      <th>Vendor Name</th>
-                      <th>Location</th>
-                      <th>Employee</th>
-                      <th>Invoices</th>
-                      <th>Parts</th>
-                      <th>Images</th>
-                      <th>Date</th>
-                    </tr>
-                  ) : (
-                    <tr>
-                      <th>Vehicle</th>
-                      {scope !== 'me' && <th>Location</th>}
-                      {scope !== 'me' && <th>Employee</th>}
-                      <th>Vendors</th>
-                      <th>Images</th>
-                      <th>Date</th>
-                    </tr>
-                  )}
-                </thead>
-                <tbody>
-                  {records.map((record) => {
-                    if (scope === 'all') {
-                      return record.vendors?.map((vendor, vIdx) => (
-                        <tr 
-                          key={`${record._id}-${vIdx}`} 
-                          className="clickable-row" 
+            <div className="table-wrapper" style={{ position: 'relative', minHeight: '400px' }}>
+              {loading ? (
+                <ModernLoader variant="table-skeleton" />
+              ) : (
+                <table className="data-table records-table">
+                  <thead>
+                    {scope === 'all' ? (
+                      <tr>
+                        <th>Unique ID</th>
+                        <th>Vendor Name</th>
+                        <th>Location</th>
+                        <th>Employee</th>
+                        <th>Invoices</th>
+                        <th>Parts</th>
+                        <th>Images</th>
+                        <th>Date</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th>Vehicle</th>
+                        {scope !== 'me' && <th>Location</th>}
+                        {scope !== 'me' && <th>Employee</th>}
+                        <th>Vendors</th>
+                        <th>Images</th>
+                        <th>Date</th>
+                      </tr>
+                    )}
+                  </thead>
+                  <tbody>
+                    {records.map((record) => {
+                      if (scope === 'all') {
+                        // Filter vendors to only show those that match the search (if any search is active)
+                        let displayVendors = record.vendors || [];
+                        
+                        if (searchFilter) {
+                          const s = searchFilter.toLowerCase();
+                          const matchingVendors = (record.vendors || []).filter(v => {
+                            const vName = (v.vendorName || '').toLowerCase();
+                            const vId = (v.vendorId || '').toLowerCase();
+                            // Precise match: contains OR ends with the numeric pattern
+                            return vName.includes(s) || vId.includes(s) || (s.length > 0 && /^\d+$/.test(s) && vId.endsWith(s.padStart(4, '0').slice(-s.length)));
+                          });
+
+                          // Only filter if we actually matched some vendors. 
+                          // If it matched the employee instead, show all vendors of that record.
+                          if (matchingVendors.length > 0) {
+                            displayVendors = matchingVendors;
+                          }
+                        }
+
+                        return displayVendors.map((vendor, vIdx) => (
+                          <tr
+                            key={`${record._id}-${vIdx}`}
+                            className="clickable-row"
+                            onClick={() => setSelectedRecord(record)}
+                            title="Click to view full record"
+                          >
+                            <td data-label="Unique ID">
+                              <span className="vendor-id-badge-inline" style={{ margin: 0 }}>
+                                {vendor.vendorId || '—'}
+                              </span>
+                            </td>
+                            <td data-label="Vendor Name">{vendor.vendorName || '—'}</td>
+                            <td data-label="Location">
+                              <span className="record-location-cell">
+                                <MapPin size={13} />
+                                {vendor.storageLocation || '—'}
+                              </span>
+                            </td>
+                            <td data-label="Employee">{record.employee?.name || 'N/A'}</td>
+                            <td data-label="Invoices">
+                              <span className="badge badge-blue">{vendor.invoiceCount || 0}</span>
+                            </td>
+                            <td data-label="Parts">
+                              <span className="badge badge-blue">{vendor.partsCount || 0}</span>
+                            </td>
+                            <td data-label="Images">
+                              {(vendor.images?.length || 0) > 0 ? (
+                                <span className="badge badge-img-count">
+                                  {vendor.images.length}
+                                </span>
+                              ) : (
+                                <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
+                              )}
+                            </td>
+                            <td data-label="Date">
+                              <span className="record-date-cell">
+                                {new Date(record.createdAt).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </span>
+                            </td>
+                          </tr>
+                        ));
+                      }
+
+                      // Original row for 'My Records' or others
+                      return (
+                        <tr
+                          key={record._id}
+                          className="clickable-row"
                           onClick={() => setSelectedRecord(record)}
                           title="Click to view full record"
                         >
-                          <td data-label="Unique ID">
-                            <span className="vendor-id-badge-inline" style={{ margin: 0 }}>
-                              {vendor.vendorId || '—'}
+                          <td data-label="Vehicle">
+                            <span className="record-invoice-cell">
+                              <Truck size={14} />
+                              {record.vehicleNumber}
                             </span>
                           </td>
-                          <td data-label="Vendor Name">{vendor.vendorName || '—'}</td>
-                          <td data-label="Location">
-                            <span className="record-location-cell">
-                              <MapPin size={13} />
-                              {vendor.storageLocation || '—'}
-                            </span>
-                          </td>
-                          <td data-label="Employee">{record.employee?.name || 'N/A'}</td>
-                          <td data-label="Invoices">
-                            <span className="badge badge-blue">{vendor.invoiceCount || 0}</span>
-                          </td>
-                          <td data-label="Parts">
-                            <span className="badge badge-blue">{vendor.partsCount || 0}</span>
+                          {scope !== 'me' && (
+                            <td data-label="Location">
+                              <span className="record-location-cell">
+                                <MapPin size={13} />
+                                {record.locationName || 'Main Gate'}
+                              </span>
+                            </td>
+                          )}
+                          {scope !== 'me' && <td data-label="Employee">{record.employee?.name || 'N/A'}</td>}
+                          <td data-label="Vendors">
+                            <span className="badge badge-blue">{record.vendors?.length || 0}</span>
                           </td>
                           <td data-label="Images">
-                            {(vendor.images?.length || 0) > 0 ? (
-                              <span className="badge badge-img-count">
-                                {vendor.images.length}
-                              </span>
-                            ) : (
-                              <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
-                            )}
+                            {(() => {
+                              const totalImgs = record.vendors?.reduce((sum, v) => sum + (v.images?.length || 0), 0) || 0;
+                              return totalImgs > 0 ? (
+                                <span
+                                  className="badge badge-img-count"
+                                  onClick={() => setSelectedRecord(record)}
+                                  title="View images"
+                                >
+                                  {totalImgs}
+                                </span>
+                              ) : (
+                                <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
+                              );
+                            })()}
                           </td>
                           <td data-label="Date">
                             <span className="record-date-cell">
@@ -466,65 +541,11 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                             </span>
                           </td>
                         </tr>
-                      ));
-                    }
-
-                    // Original row for 'My Records' or others
-                    return (
-                      <tr 
-                        key={record._id} 
-                        className="clickable-row" 
-                        onClick={() => setSelectedRecord(record)}
-                        title="Click to view full record"
-                      >
-                        <td data-label="Vehicle">
-                          <span className="record-invoice-cell">
-                            <Truck size={14} />
-                            {record.vehicleNumber}
-                          </span>
-                        </td>
-                        {scope !== 'me' && (
-                           <td data-label="Location">
-                            <span className="record-location-cell">
-                              <MapPin size={13} />
-                              {record.locationName || 'Main Gate'}
-                            </span>
-                          </td>
-                        )}
-                        {scope !== 'me' && <td data-label="Employee">{record.employee?.name || 'N/A'}</td>}
-                        <td data-label="Vendors">
-                          <span className="badge badge-blue">{record.vendors?.length || 0}</span>
-                        </td>
-                        <td data-label="Images">
-                          {(() => {
-                            const totalImgs = record.vendors?.reduce((sum, v) => sum + (v.images?.length || 0), 0) || 0;
-                            return totalImgs > 0 ? (
-                              <span
-                                className="badge badge-img-count"
-                                onClick={() => setSelectedRecord(record)}
-                                title="View images"
-                              >
-                                {totalImgs}
-                              </span>
-                            ) : (
-                              <span className="text-muted" style={{ fontSize: '0.75rem' }}>—</span>
-                            );
-                          })()}
-                        </td>
-                        <td data-label="Date">
-                          <span className="record-date-cell">
-                            {new Date(record.createdAt).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                            })}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
 
@@ -538,7 +559,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
               >
                 <ChevronLeft size={16} /> <span className="hide-mobile">Prev</span>
               </button>
-              
+
               <div className="pagination-numbers">
                 {Array.from({ length: pagination.pages }, (_, i) => i + 1)
                   .filter(p => {
@@ -612,15 +633,15 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                 <p style={{ color: '#64748b' }}>Are you sure you want to delete this record? This action cannot be undone.</p>
               </div>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-                <button 
-                  className="btn btn-secondary" 
+                <button
+                  className="btn btn-secondary"
                   onClick={() => setDeleteConfirmRecord(null)}
                   style={{ flex: 1 }}
                 >
                   Cancel
                 </button>
-                <button 
-                  className="btn btn-danger" 
+                <button
+                  className="btn btn-danger"
                   onClick={confirmDelete}
                   style={{ flex: 1 }}
                 >
@@ -648,23 +669,23 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
 
             {scope === 'me' && (
               <div className="modal-actions-row" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem', background: 'rgba(0,0,0,0.02)', borderRadius: '12px' }}>
-                <button 
-                  className="btn btn-secondary btn-sm" 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSelectedRecord(null); // Close detail modal
-                    setEditRecord(selectedRecord); 
+                    setEditRecord(selectedRecord);
                   }}
                   style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
                   <Edit size={14} /> Edit Record
                 </button>
-                <button 
-                  className="btn btn-danger btn-sm" 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
+                <button
+                  className="btn btn-danger btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSelectedRecord(null); // Close detail modal
-                    handleDelete(selectedRecord._id); 
+                    handleDelete(selectedRecord._id);
                   }}
                   style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
@@ -689,9 +710,9 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                 </thead>
                 <tbody>
                   {selectedRecord.vendors?.map((v, i) => (
-                    <tr 
-                      key={i} 
-                      className={v.images?.length > 0 ? "clickable-row" : ""} 
+                    <tr
+                      key={i}
+                      className={v.images?.length > 0 ? "clickable-row" : ""}
                       onClick={() => v.images?.length > 0 && openLightbox(v.images, 0)}
                       title={v.images?.length > 0 ? "Click to view images" : ""}
                     >
@@ -710,9 +731,9 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                       <td>
                         <div style={{ display: 'flex', gap: '4px' }}>
                           {v.images?.map((img, imgIdx) => (
-                            <img 
+                            <img
                               key={imgIdx}
-                              src={img} 
+                              src={img}
                               alt="Proof"
                               className="table-thumb"
                               onClick={() => openLightbox([img], 0)}
@@ -761,7 +782,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
               </button>
             )}
 
-            <div 
+            <div
               className="lightbox-image-container"
               onMouseMove={handleDragMove}
               onMouseUp={handleDragEnd}
@@ -775,7 +796,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                 className="lightbox-image"
                 onMouseDown={handleDragStart}
                 onTouchStart={handleDragStart}
-                style={{ 
+                style={{
                   transform: `translate(${lightbox.position.x}px, ${lightbox.position.y}px) scale(${lightbox.zoom}) rotate(${lightbox.rotate}deg)`,
                   transition: lightbox.isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                   cursor: lightbox.zoom > 1 ? (lightbox.isDragging ? 'grabbing' : 'grab') : 'default'

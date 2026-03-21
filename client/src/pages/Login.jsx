@@ -129,7 +129,7 @@ const Login = () => {
         </form>
 
         <p className="auth-footer">
-          Contact your manager for account access
+          Contact your manager for account access or <Link to="/guest" className="guest-link-inline">View as Guest</Link>
         </p>
       </div>
     </div>
