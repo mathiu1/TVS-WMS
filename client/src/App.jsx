@@ -11,6 +11,7 @@ import Records from './pages/Records';
 import EmployeeReports from './pages/EmployeeReports';
 import EmployeeDetail from './pages/EmployeeDetail';
 import GuestSearch from './pages/GuestSearch';
+import PublicRecordView from './pages/PublicRecordView';
 import './App.css';
 
 const HomeRedirect = () => {
@@ -68,14 +69,6 @@ const AppContent = () => {
               }
             />
             <Route
-              path="/my-records"
-              element={
-                <ProtectedRoute allowedRoles={['employee']}>
-                  <Records scope="mine" title="My Records" />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/all-records"
               element={
                 <ProtectedRoute allowedRoles={['employee', 'manager']}>
@@ -100,6 +93,7 @@ const AppContent = () => {
               }
             />
             <Route path="/guest" element={<GuestSearch />} />
+            <Route path="/record/:id" element={<PublicRecordView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

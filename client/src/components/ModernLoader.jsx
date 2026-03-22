@@ -1,16 +1,10 @@
-import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { Warehouse, Truck, Loader2 } from 'lucide-react';
 
 /**
- * ModernLoader Component
- * Provides a premium, high-fidelity loading experience with glassmorphism
- * and smooth orbiting animations.
- * 
- * @param {string} message - Optional message to display below the loader
- * @param {boolean} fullPage - If true, covers the entire viewport with a blurred backdrop
- * @param {string} variant - 'default', 'card', 'chart', 'table', 'table-skeleton'
+ * ModernLoader Component - Truck & Forklift Evolution
+ * Provides a thematic unloading story featuring a source vehicle.
  */
-const ModernLoader = ({ message = "Initializing...", fullPage = false, variant = 'default' }) => {
+const ModernLoader = ({ message = "Unloading cargo...", fullPage = false, variant = 'default' }) => {
   if (variant === 'card') {
     return (
       <div className="skeleton-card-loading">
@@ -30,7 +24,7 @@ const ModernLoader = ({ message = "Initializing...", fullPage = false, variant =
         </div>
         <div className="modern-loader-content" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', gap: '0.5rem' }}>
           <Loader2 className="loader-icon-spin" size={24} />
-          <span className="loader-text-modern" style={{ fontSize: '0.75rem' }}>Updating charts...</span>
+          <span className="loader-text-modern" style={{ fontSize: '0.75rem' }}>Optimizing logistics...</span>
         </div>
       </div>
     );
@@ -65,14 +59,11 @@ const ModernLoader = ({ message = "Initializing...", fullPage = false, variant =
   return (
     <div className={`modern-loader-container ${fullPage ? 'full-page' : ''}`}>
       <div className="modern-loader-content">
-        <div className="loader-orbit-wrapper">
-          <div className="orbit-track">
-            <div className="orbit-dot dot-1"></div>
-            <div className="orbit-dot dot-1"></div>
-            <div className="orbit-dot dot-3"></div>
-          </div>
-          <div className="loader-core">
-            <Loader2 className="loader-icon-spin" size={32} />
+        <div className="professional-loader-container">
+          <div className="loader-orbit-ring ring-outer"></div>
+          <div className="loader-orbit-ring ring-inner"></div>
+          <div className="loader-center-icon">
+            <Truck size={36} />
           </div>
         </div>
         {message && <p className="loader-text-modern">{message}</p>}

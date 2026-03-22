@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { unloadingAPI } from '../api/axios';
+import { useAuth } from '../context/AuthContext';
 import {
   ClipboardList,
   Search,
@@ -17,12 +18,17 @@ import {
   RotateCw,
   RefreshCcw,
   Truck,
+  Share2,
+  Copy,
+  Check,
+  Send,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import UnloadingForm from './UnloadingForm';
 import ModernLoader from '../components/ModernLoader';
 
 const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
+  const { user } = useAuth();
   const [records, setRecords] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [loading, setLoading] = useState(true);
@@ -46,6 +52,8 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
   });
   const [stats, setStats] = useState({ today: 0, week: 0, month: 0 });
   const [statsLoading, setStatsLoading] = useState(true);
+  const [shareModal, setShareModal] = useState({ open: false, record: null });
+  const [copied, setCopied] = useState(false);
 
   const openLightbox = (images, index) => {
     setLightbox({
@@ -135,6 +143,32 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
       }
     }
     setLightbox(p => ({ ...p, isDragging: false }));
+  };
+
+  const handleShare = (e, record) => {
+    e.stopPropagation();
+    setShareModal({ open: true, record });
+    setCopied(false);
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success('Link copied to clipboard!');
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const triggerNativeShare = (record) => {
+    const shareUrl = `${window.location.origin}/record/${record._id}`;
+    if (navigator.share) {
+      navigator.share({
+        title: `Unloading Report: ${record.vehicleNumber}`,
+        text: `Check out the unloading report for vehicle ${record.vehicleNumber}`,
+        url: shareUrl,
+      }).catch(err => console.log('Error sharing:', err));
+    } else {
+      copyToClipboard(shareUrl);
+    }
   };
 
   useEffect(() => {
@@ -407,6 +441,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                         <th>Parts</th>
                         <th>Images</th>
                         <th>Date</th>
+                        <th>Action</th>
                       </tr>
                     ) : (
                       <tr>
@@ -416,6 +451,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                         <th>Vendors</th>
                         <th>Images</th>
                         <th>Date</th>
+                        <th>Action</th>
                       </tr>
                     )}
                   </thead>
@@ -424,7 +460,7 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                       if (scope === 'all') {
                         // Filter vendors to only show those that match the search (if any search is active)
                         let displayVendors = record.vendors || [];
-                        
+
                         if (searchFilter) {
                           const s = searchFilter.toLowerCase();
                           const matchingVendors = (record.vendors || []).filter(v => {
@@ -485,6 +521,15 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                                 })}
                               </span>
                             </td>
+                            <td data-label="Action">
+                              <button
+                                className="btn-icon share-btn-table"
+                                onClick={(e) => handleShare(e, record)}
+                                title="Share record"
+                              >
+                                <Share2 size={16} />
+                              </button>
+                            </td>
                           </tr>
                         ));
                       }
@@ -539,6 +584,15 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                                 year: 'numeric',
                               })}
                             </span>
+                          </td>
+                          <td data-label="Action">
+                            <button
+                              className="btn-icon share-btn-table"
+                              onClick={(e) => handleShare(e, record)}
+                              title="Share record"
+                            >
+                              <Share2 size={16} />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -661,13 +715,24 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
               <X size={20} />
             </button>
 
-            <h2>Vehicle {selectedRecord.vehicleNumber}</h2>
-            <div className="modal-details">
-              <p><strong>Unloading Agent:</strong> {selectedRecord.employee?.name}</p>
-              <p><strong>Date:</strong> {new Date(selectedRecord.createdAt).toLocaleString('en-IN')}</p>
+            <div style={{ paddingRight: '50px' }}>
+              <h2>Vehicle {selectedRecord.vehicleNumber}</h2>
+              <div className="modal-top-actions" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                <div className="modal-details" style={{ flex: 1, margin: 0 }}>
+                  <p><strong>Unloading Agent:</strong> {selectedRecord.employee?.name}</p>
+                  <p><strong>Date:</strong> {new Date(selectedRecord.createdAt).toLocaleString('en-IN')}</p>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={(e) => handleShare(e, selectedRecord)}
+                  style={{ height: 'fit-content', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <Share2 size={14} /> Share
+                </button>
+              </div>
             </div>
 
-            {scope === 'me' && (
+            {(activeScope === 'mine' || selectedRecord.employee?._id === user?._id) && (
               <div className="modal-actions-row" style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', padding: '0.75rem', background: 'rgba(0,0,0,0.02)', borderRadius: '12px' }}>
                 <button
                   className="btn btn-secondary btn-sm"
@@ -817,6 +882,68 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
               {lightbox.index + 1} / {lightbox.images.length}
             </span>
           )}
+        </div>
+      )}
+      {/* Share Modal */}
+      {shareModal.open && (
+        <div className="modal-overlay" onClick={() => setShareModal({ open: false, record: null })}>
+          <div className="modal-content share-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-drag-handle"></div>
+            <button className="modal-close" onClick={() => setShareModal({ open: false, record: null })}>
+              <X size={20} />
+            </button>
+
+            <div className="share-icon-wrapper">
+              <Share2 size={32} />
+            </div>
+
+            <h3>Share Record</h3>
+            <p className="text-muted">Share this report via public link or social apps</p>
+
+            <div className="share-url-container">
+              <label>Public Report Link</label>
+              <div className="url-input-group">
+                <input
+                  type="text"
+                  readOnly
+                  value={`${window.location.origin}/record/${shareModal.record?._id}`}
+                />
+                <button
+                  className={`btn-icon ${copied ? 'text-success' : ''}`}
+                  onClick={() => copyToClipboard(`${window.location.origin}/record/${shareModal.record?._id}`)}
+                  title="Copy Link"
+                >
+                  {copied ? <Check size={18} /> : <Copy size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="share-options-grid">
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(`Check out this unloading report for vehicle ${shareModal.record?.vehicleNumber}: ${window.location.origin}/record/${shareModal.record?._id}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="share-opt-btn whatsapp"
+              >
+                <i><Send size={20} /></i>
+                <span>WhatsApp</span>
+              </a>
+              <a
+                href={`mailto:?subject=Unloading Report: ${shareModal.record?.vehicleNumber}&body=${encodeURIComponent(`Check out the unloading report: ${window.location.origin}/record/${shareModal.record?._id}`)}`}
+                className="share-opt-btn email"
+              >
+                <i><FileText size={20} /></i>
+                <span>Email</span>
+              </a>
+              <button
+                className="share-opt-btn native"
+                onClick={() => triggerNativeShare(shareModal.record)}
+              >
+                <i><Share2 size={20} /></i>
+                <span>More</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

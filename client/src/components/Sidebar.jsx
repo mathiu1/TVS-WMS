@@ -4,7 +4,6 @@ import {
   Warehouse,
   LayoutDashboard,
   PackagePlus,
-  ClipboardList,
   Users,
   LogOut,
   ChevronLeft,
@@ -30,7 +29,6 @@ const Sidebar = () => {
 
   const employeeLinks = [
     { to: '/unloading', icon: PackagePlus, label: 'Unloading' },
-    { to: '/my-records', icon: ClipboardList, label: 'My Records' },
     { to: '/all-records', icon: Globe, label: 'Unloading Reports' },
   ];
 
