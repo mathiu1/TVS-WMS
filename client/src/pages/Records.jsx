@@ -775,12 +775,12 @@ const Records = ({ scope = 'all', title = 'Unloading Reports' }) => {
                 </thead>
                 <tbody>
                   {selectedRecord.vendors?.map((v, i) => (
-                    <tr
-                      key={i}
-                      className={v.images?.length > 0 ? "clickable-row" : ""}
-                      onClick={() => v.images?.length > 0 && openLightbox(v.images, 0)}
-                      title={v.images?.length > 0 ? "Click to view images" : ""}
-                    >
+                      <tr
+                        key={i}
+                        className={v.images?.length > 0 ? "clickable-row" : ""}
+                        onClick={() => v.images?.length > 0 && openLightbox(v.images, 0)}
+                        title={v.images?.length > 0 ? "Click to view images" : ""}
+                      >
                       <td>{i + 1}</td>
                       <td>
                         {v.vendorId ? (
