@@ -1,1 +1,155 @@
-javascript:(function(){const r={let:/^[A-Za-z]/,char:/^[A-Za-z0-9 ]+$/,len:v=>v.length>=4&&v.length<=15};const style=document.createElement('style');style.innerHTML=`@keyframes valPopTop{0%{transform:translateX(-50%) translateY(-50px);opacity:0}100%{transform:translateX(-50%) translateY(0);opacity:1}}@keyframes valShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`;document.head.appendChild(style);if(sessionStorage.getItem('valActive')===null){sessionStorage.setItem('valActive','true')}const run=()=>{const i=document.querySelectorAll('input:not([type="hidden"])')[1];if(!i)return;let wrapper=i.parentNode;if(window.getComputedStyle(wrapper).position==='static'){wrapper.style.position='relative'}const getBtn=()=>{return i.closest('form')?.querySelector('button[type="submit"],input[type="submit"]')||document.querySelector('button[class*="save"],button[id*="save"],button[class*="sign-in"],button[class*="primary"]');};let p=document.getElementById('val-msg');if(!p){p=document.createElement('div');p.id='val-msg';p.style="color:#ff4757;position:absolute;top:calc(100% + 6px);left:4px;z-index:2147483647;display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.3px;pointer-events:none;white-space:nowrap;animation:slideUp 0.2s ease-out;";wrapper.appendChild(p)}let t=document.getElementById('val-toggle');if(!t){t=document.createElement('button');t.id='val-toggle';t.style="position:fixed;bottom:30px;right:20px;z-index:2147483647;padding:14px 22px;color:#fff;border-radius:30px;border:1px solid rgba(255,255,255,0.2);font-weight:700;font-size:13px;font-family:sans-serif;box-shadow:0 12px 24px rgba(0,0,0,0.3);transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1);backdrop-filter:blur(8px);text-transform:uppercase;letter-spacing:1px;";document.body.appendChild(t);t.onclick=(e)=>{e.preventDefault();e.stopPropagation();let s=!(sessionStorage.getItem('valActive')==='true');sessionStorage.setItem('valActive',s);updateUI()}}const showPopup=(txt)=>{let s=document.getElementById('val-popup');if(!s){s=document.createElement('div');s.id='val-popup';s.style="position:fixed;top:40px;left:50%;background:linear-gradient(135deg, #ff4757 0%, #ff6b81 100%);color:white;padding:16px 28px;border-radius:16px;z-index:2147483647;font-family:sans-serif;font-weight:700;box-shadow:0 15px 35px rgba(255,71,87,0.4);white-space:nowrap;pointer-events:none;animation:valPopTop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;";document.body.appendChild(s)}s.innerText=txt;i.style.animation="valShake 0.4s ease-in-out";setTimeout(()=>{s.style.opacity="0";s.style.transform="translateX(-50%) translateY(-20px)";i.style.animation="";setTimeout(()=>{s.remove()},300)},2200)};const v=(isEnterPress=false)=>{const active=(sessionStorage.getItem('valActive')==='true');if(!active)return{ok:true};const val=i.value;const vLet=r.let.test(val);const vChar=r.char.test(val);const vLen=r.len(val);const ok=vLet&&vChar&&vLen;const btn=getBtn();if(btn && !isEnterPress){btn.style.display="none";btn.disabled=true;}if(val===''){p.style.display="none";i.style.borderColor="#ddd";return{ok:false,m:"⚠️ Input cannot be empty"}}let msg="";if(!vLet)msg="✕ Start with a letter";else if(!vChar)msg="✕ Letters & numbers only";else if(val.length < 4)msg="✕ Too short (Min 4 characters)";else if(val.length > 15)msg="✕ Too long (Max 15 characters)";p.innerHTML=msg;p.style.display=ok?"none":"block";i.style.borderColor=ok?"#2ed573":"#ff4757";if(ok && isEnterPress && btn){btn.style.display="block";btn.disabled=false;btn.style.opacity="1";btn.style.filter="none";btn.style.animation="slideUp 0.3s ease-out";}return{ok,m:msg}};const updateUI=()=>{const active=(sessionStorage.getItem('valActive')==='true');t.innerText=active?"Validation: ON":"Validation: OFF";t.style.background=active?"linear-gradient(135deg, #2ed573 0%, #26af5a 100%)":"#333";const btn=getBtn();if(!active){p.style.display="none";i.style.borderColor="";if(btn){btn.style.display="block";btn.disabled=false;btn.style.opacity="1";btn.style.filter="none"}}else{v()}};i.oninput=()=>v(false);i.addEventListener('keydown',function(e){if(e.key==="Enter"){let res=v(true);if(!res.ok){e.preventDefault();e.stopImmediatePropagation();showPopup(res.m)}}},true);updateUI()};run();const obs=new MutationObserver((ms)=>{for(let m of ms){if(!['val-msg','val-toggle','val-popup'].includes(m.target.id)){run();break}}});obs.observe(document.body,{childList:true,subtree:true});})();
+javascript: (function () {
+  const r = {
+    let: /^[A-Za-z]/,
+    char: /^[A-Za-z0-9 ]+$/,
+    len: (v) => v.length >= 4 && v.length <= 15,
+  };
+  const style = document.createElement("style");
+  style.innerHTML = `@keyframes valPopTop{0%{transform:translateX(-50%) translateY(-50px);opacity:0}100%{transform:translateX(-50%) translateY(0);opacity:1}}@keyframes valShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(6px)}60%{transform:translateX(-3px)}80%{transform:translateX(3px)}}@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`;
+  document.head.appendChild(style);
+  if (sessionStorage.getItem("valActive") === null) {
+    sessionStorage.setItem("valActive", "true");
+  }
+  const run = () => {
+    const i = document.querySelectorAll('input:not([type="hidden"])')[1];
+    if (!i) return;
+    let wrapper = i.parentNode;
+    if (window.getComputedStyle(wrapper).position === "static") {
+      wrapper.style.position = "relative";
+    }
+    const getBtn = () => {
+      return (
+        i
+          .closest("form")
+          ?.querySelector('button[type="submit"],input[type="submit"]') ||
+        document.querySelector(
+          'button[class*="save"],button[id*="save"],button[class*="sign-in"],button[class*="primary"]',
+        )
+      );
+    };
+    let p = document.getElementById("val-msg");
+    if (!p) {
+      p = document.createElement("div");
+      p.id = "val-msg";
+      p.style =
+        "color:#ff4757;position:absolute;top:calc(100% + 6px);left:4px;z-index:2147483647;display:none;font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:12px;font-weight:700;letter-spacing:0.3px;pointer-events:none;white-space:nowrap;animation:slideUp 0.2s ease-out;";
+      wrapper.appendChild(p);
+    }
+    let t = document.getElementById("val-toggle");
+    if (!t) {
+      t = document.createElement("button");
+      t.id = "val-toggle";
+      t.style =
+        "position:fixed;bottom:30px;right:20px;z-index:2147483647;padding:14px 22px;color:#fff;border-radius:30px;border:1px solid rgba(255,255,255,0.2);font-weight:700;font-size:13px;font-family:sans-serif;box-shadow:0 12px 24px rgba(0,0,0,0.3);transition:all 0.4s cubic-bezier(0.4, 0, 0.2, 1);backdrop-filter:blur(8px);text-transform:uppercase;letter-spacing:1px;";
+      document.body.appendChild(t);
+      t.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        let s = !(sessionStorage.getItem("valActive") === "true");
+        sessionStorage.setItem("valActive", s);
+        updateUI();
+      };
+    }
+    const showPopup = (txt) => {
+      let s = document.getElementById("val-popup");
+      if (!s) {
+        s = document.createElement("div");
+        s.id = "val-popup";
+        s.style =
+          "position:fixed;top:40px;left:50%;background:linear-gradient(135deg, #ff4757 0%, #ff6b81 100%);color:white;padding:16px 28px;border-radius:16px;z-index:2147483647;font-family:sans-serif;font-weight:700;box-shadow:0 15px 35px rgba(255,71,87,0.4);white-space:nowrap;pointer-events:none;animation:valPopTop 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;";
+        document.body.appendChild(s);
+      }
+      s.innerText = txt;
+      i.style.animation = "valShake 0.4s ease-in-out";
+      setTimeout(() => {
+        s.style.opacity = "0";
+        s.style.transform = "translateX(-50%) translateY(-20px)";
+        i.style.animation = "";
+        setTimeout(() => {
+          s.remove();
+        }, 300);
+      }, 2200);
+    };
+    const v = (isEnterPress = false) => {
+      const active = sessionStorage.getItem("valActive") === "true";
+      if (!active) return { ok: true };
+      const val = i.value;
+      const vLet = r.let.test(val);
+      const vChar = r.char.test(val);
+      const vLen = r.len(val);
+      const ok = vLet && vChar && vLen;
+      const btn = getBtn();
+      if (btn && !isEnterPress) {
+        btn.style.display = "none";
+        btn.disabled = true;
+      }
+      if (val === "") {
+        p.style.display = "none";
+        i.style.borderColor = "#ddd";
+        return { ok: false, m: "⚠️ Input cannot be empty" };
+      }
+      let msg = "";
+      if (!vLet) msg = "✕ Start with a letter";
+      else if (!vChar) msg = "✕ Letters & numbers only";
+      else if (val.length < 4) msg = "✕ Too short (Min 4 characters)";
+      else if (val.length > 15) msg = "✕ Too long (Max 15 characters)";
+      p.innerHTML = msg;
+      p.style.display = ok ? "none" : "block";
+      i.style.borderColor = ok ? "#2ed573" : "#ff4757";
+      if (ok && isEnterPress && btn) {
+        btn.style.display = "block";
+        btn.disabled = false;
+        btn.style.opacity = "1";
+        btn.style.filter = "none";
+        btn.style.animation = "slideUp 0.3s ease-out";
+      }
+      return { ok, m: msg };
+    };
+    const updateUI = () => {
+      const active = sessionStorage.getItem("valActive") === "true";
+      t.innerText = active ? "Validation: ON" : "Validation: OFF";
+      t.style.background = active
+        ? "linear-gradient(135deg, #2ed573 0%, #26af5a 100%)"
+        : "#333";
+      const btn = getBtn();
+      if (!active) {
+        p.style.display = "none";
+        i.style.borderColor = "";
+        if (btn) {
+          btn.style.display = "block";
+          btn.disabled = false;
+          btn.style.opacity = "1";
+          btn.style.filter = "none";
+        }
+      } else {
+        v();
+      }
+    };
+    i.oninput = () => v(false);
+    i.addEventListener(
+      "keydown",
+      function (e) {
+        if (e.key === "Enter") {
+          let res = v(true);
+          if (!res.ok) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            showPopup(res.m);
+          }
+        }
+      },
+      true,
+    );
+    updateUI();
+  };
+  run();
+  const obs = new MutationObserver((ms) => {
+    for (let m of ms) {
+      if (!["val-msg", "val-toggle", "val-popup"].includes(m.target.id)) {
+        run();
+        break;
+      }
+    }
+  });
+  obs.observe(document.body, { childList: true, subtree: true });
+})();
