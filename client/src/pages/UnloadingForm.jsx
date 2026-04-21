@@ -7,15 +7,17 @@ import {
   Trash2,
   Upload,
   X,
-  CheckCircle,
-  Image as ImageIcon,
-  FileText,
-  MapPin,
   Truck,
   Users,
+  Camera,
+  CheckCircle,
+  Image as ImageIcon,
+  Pencil,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import imageCompression from 'browser-image-compression';
+import SmartDropdown from '../components/SmartDropdown';
+import ImageEditor from '../components/ImageEditor';
 
 const emptyVendor = {
   vendorName: '',
@@ -45,6 +47,9 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
   const [success, setSuccess] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [submittedVendors, setSubmittedVendors] = useState([]);
+  const [suggestions, setSuggestions] = useState({ vehicle: [], vendor: [], location: [] });
+  const [photoSheet, setPhotoSheet] = useState({ isOpen: false, vendorIndex: null });
+  const [editPhoto, setEditPhoto] = useState({ isOpen: false, vendorIndex: null, imageIndex: null, file: null });
 
   const navigate = useNavigate();
 
@@ -62,6 +67,20 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
     }
     setVendors(updated);
   };
+
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      try {
+        const res = await unloadingAPI.getSuggestions();
+        if (res.data.success) {
+          setSuggestions(res.data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch suggestions:', err);
+      }
+    };
+    fetchSuggestions();
+  }, []);
 
   const addVendor = () => {
     setVendors([...vendors, { ...emptyVendor }]);
@@ -126,20 +145,34 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
       };
 
       // Generate previews
-      const newPreviews = await Promise.all(compressedFiles.map(file => {
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve({ name: file.name, url: e.target.result });
-          reader.readAsDataURL(file);
-        });
-      }));
+      const previewsToProcess = [...compressedFiles];
+      const newPreviews = await Promise.all(
+        previewsToProcess.map(async (file) => {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve({ name: file.name, url: e.target.result });
+            reader.readAsDataURL(file);
+          });
+        })
+      );
 
-      updatedVendors[index].previews = [...updatedVendors[index].previews, ...newPreviews];
+      const startIndexForEditing = updatedVendors[index].previews.length;
+      updatedVendors[index].previews = [...vendor.previews, ...newPreviews];
       setVendors(updatedVendors);
+      toast.success('Images uploaded!', { id: toastId });
 
-      toast.success('Images added to vendor!', { id: toastId });
+      // Live Edit: Automatically open editor for the first newly added image
+      if (compressedFiles.length > 0) {
+        setEditPhoto({ 
+          isOpen: true, 
+          vendorIndex: index, 
+          imageIndex: startIndexForEditing, 
+          file: compressedFiles[0] 
+        });
+      }
     } catch (err) {
-      toast.error('Failed to process images', { id: toastId });
+      console.error(err);
+      toast.error('Processing failed', { id: toastId });
     }
   };
 
@@ -165,6 +198,54 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
     setVendors(updated);
   };
 
+  const openPhotoSheet = (index) => {
+    setPhotoSheet({ isOpen: true, vendorIndex: index });
+  };
+
+  const triggerGallery = () => {
+    document.getElementById('gallery-input-hidden').click();
+    setPhotoSheet({ ...photoSheet, isOpen: false });
+  };
+
+  const triggerCamera = () => {
+    document.getElementById('camera-input-hidden').click();
+    setPhotoSheet({ ...photoSheet, isOpen: false });
+  };
+
+  const startEditing = (vendorIdx, imgIdx) => {
+    const vendor = vendors[vendorIdx];
+    const file = vendor.files[imgIdx];
+    if (!file) {
+      toast.error('Only newly uploaded photos can be edited.');
+      return;
+    }
+    setEditPhoto({ isOpen: true, vendorIndex: vendorIdx, imageIndex: imgIdx, file });
+  };
+
+  const handleSaveEdited = async (editedFile) => {
+    const { vendorIndex, imageIndex } = editPhoto;
+    const updatedVendors = [...vendors];
+    const vendor = { ...updatedVendors[vendorIndex] };
+    
+    // Replace file
+    const newFiles = [...vendor.files];
+    newFiles[imageIndex] = editedFile;
+    vendor.files = newFiles;
+
+    // Update preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const newPreviews = [...vendor.previews];
+      newPreviews[imageIndex] = { name: editedFile.name, url: e.target.result };
+      vendor.previews = newPreviews;
+      updatedVendors[vendorIndex] = vendor;
+      setVendors(updatedVendors);
+      setEditPhoto({ isOpen: false, vendorIndex: null, imageIndex: null, file: null });
+      toast.success('Edits saved!');
+    };
+    reader.readAsDataURL(editedFile);
+  };
+
   // Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -180,11 +261,11 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
       !v.vendorName.trim() || 
       !v.storageLocation.trim() || 
       v.invoiceCount < 1 || 
-      v.partsCount < 0
+      v.partsCount < 1
     );
 
     if (missingFields) {
-      toast.error('Please fill all mandatory vendor fields (Name, Location, Invoices, Parts)');
+      toast.error('Please ensure all vendors have Name, Location, and at least 1 Invoice & 1 Part recorded.');
       return;
     }
 
@@ -286,19 +367,14 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
             <Truck size={20} />
             Vehicle Details
           </h2>
-          <div className="input-group">
-            <Truck size={18} className="input-icon" />
-            <input
-              id="vehicle-number"
-              type="text"
-              name="vehicleNumber"
-              placeholder="Vehicle Number (e.g. TN 21 BS 3133)"
-              value={form.vehicleNumber}
-              onChange={handleChange}
-              required
-              className="premium-input-large"
-            />
-          </div>
+          <SmartDropdown
+            placeholder="Vehicle Number"
+            value={form.vehicleNumber}
+            suggestions={suggestions.vehicle}
+            icon={Truck}
+            onChange={(e) => setForm({ ...form, vehicleNumber: e.target.value.toUpperCase() })}
+            required
+          />
         </div>
 
         {/* Vendors List Card */}
@@ -327,20 +403,20 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
                 <span className="part-index">{index + 1}</span>
                 <div className="col-vendor">
                   <label className="mobile-label">Vendor Name</label>
-                  <input
-                    type="text"
+                  <SmartDropdown
                     placeholder="Vendor Name"
                     value={v.vendorName}
+                    suggestions={suggestions.vendor}
                     onChange={(e) => handleVendorChange(index, 'vendorName', e.target.value)}
                     required
                   />
                 </div>
                 <div className="col-location">
                   <label className="mobile-label">Location</label>
-                  <input
-                    type="text"
-                    placeholder="Dock"
+                  <SmartDropdown
+                    placeholder="Location"
                     value={v.storageLocation}
+                    suggestions={suggestions.location}
                     onChange={(e) => handleVendorChange(index, 'storageLocation', e.target.value)}
                     required
                   />
@@ -368,17 +444,15 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
                   />
                 </div>
                 <div className="col-action-group">
-                  <label className="vendor-row-action" title="Add Photo">
+                  <button 
+                    type="button"
+                    className="vendor-row-action-btn" 
+                    onClick={() => openPhotoSheet(index)}
+                    title="Add Photo"
+                  >
                     <ImageIcon size={16} className={v.previews.length > 0 ? 'text-primary' : ''} />
                     <span>Photo</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png"
-                      multiple
-                      onChange={(e) => handleImageChange(index, e)}
-                      className="hidden-file-input"
-                    />
-                  </label>
+                  </button>
 
                   <button
                     type="button"
@@ -397,13 +471,24 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
                     {v.previews.map((preview, imgIdx) => (
                       <div key={imgIdx} className="preview-mini-v3">
                         <img src={preview.url} alt="Proof" />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index, imgIdx)}
-                          className="preview-remove-v3"
-                        >
-                          <X size={8} />
-                        </button>
+                        <div className="preview-controls">
+                          <button
+                            type="button"
+                            onClick={() => startEditing(index, imgIdx)}
+                            className="preview-edit-btn"
+                            title="Edit Image"
+                          >
+                            <Pencil size={8} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeImage(index, imgIdx)}
+                            className="preview-remove-v3"
+                            title="Remove Image"
+                          >
+                            <X size={8} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -428,7 +513,67 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
             </>
           )}
         </button>
-    </form>
+      </form>
+
+      {/* Hidden Global File Inputs triggered by Action Sheet */}
+      <input
+        id="gallery-input-hidden"
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => handleImageChange(photoSheet.vendorIndex, e)}
+      />
+      <input
+        id="camera-input-hidden"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        style={{ display: 'none' }}
+        onChange={(e) => handleImageChange(photoSheet.vendorIndex, e)}
+      />
+
+      {/* Photo Option Action Sheet */}
+      {photoSheet.isOpen && (
+        <div className="photo-sheet-overlay" onClick={() => setPhotoSheet({ ...photoSheet, isOpen: false })}>
+          <div className="photo-sheet-content" onClick={(e) => e.stopPropagation()}>
+            <div className="photo-sheet-header">
+              <div className="photo-sheet-handle"></div>
+              <h3>Add Photo</h3>
+              <p>Choose an option to attach proof</p>
+            </div>
+            
+            <div className="photo-sheet-options">
+              <button className="photo-option-btn" onClick={triggerCamera}>
+                <div className="option-icon camera">
+                  <Camera size={24} />
+                </div>
+                <span>Take Photo</span>
+              </button>
+              
+              <button className="photo-option-btn" onClick={triggerGallery}>
+                <div className="option-icon gallery">
+                  <ImageIcon size={24} />
+                </div>
+                <span>From Gallery</span>
+              </button>
+            </div>
+            
+            <button className="photo-sheet-cancel" onClick={() => setPhotoSheet({ ...photoSheet, isOpen: false })}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Image Editor Modal */}
+      {editPhoto.isOpen && (
+        <ImageEditor 
+          imageFile={editPhoto.file}
+          onSave={handleSaveEdited}
+          onClose={() => setEditPhoto({ isOpen: false, vendorIndex: null, imageIndex: null, file: null })}
+        />
+      )}
 
     {/* Success Modal */}
     {showSuccessModal && (

@@ -4,6 +4,8 @@ const authorize = require('../middleware/role');
 const upload = require('../middleware/upload');
 const UnloadingRecord = require('../models/UnloadingRecord');
 const Counter = require('../models/Counter');
+const AutocompleteOption = require('../models/AutocompleteOption');
+const User = require('../models/User'); 
 
 const router = express.Router();
 
@@ -21,6 +23,39 @@ const getNextVendorId = async () => {
     return seqStr.padStart(4, '0');
   }
   return seqStr;
+};
+
+// Helper to update autocomplete suggestions
+const updateSuggestions = async (vehicleNumber, vendors) => {
+  try {
+    const options = [];
+
+    if (vehicleNumber) {
+      options.push({ type: 'vehicle', value: vehicleNumber.toUpperCase() });
+    }
+
+    if (vendors && Array.isArray(vendors)) {
+      vendors.forEach(v => {
+        if (v.vendorName) options.push({ type: 'vendor', value: v.vendorName });
+        if (v.storageLocation) options.push({ type: 'location', value: v.storageLocation });
+      });
+    }
+
+    if (options.length === 0) return;
+
+    // Use bulkWrite for efficiency and to skip existing duplicates
+    const operations = options.map(opt => ({
+      updateOne: {
+        filter: { type: opt.type, value: opt.value },
+        update: { $set: opt },
+        upsert: true
+      }
+    }));
+
+    await AutocompleteOption.bulkWrite(operations);
+  } catch (err) {
+    console.error('Failed to update autocomplete suggestions:', err);
+  }
 };
 
 // @route   POST /api/unloading
@@ -91,6 +126,9 @@ router.post(
         employee: req.user.id,
       });
 
+      // Background: Update autocomplete suggestions
+      updateSuggestions(vehicleNumber, parsedVendors);
+
       // Populate employee info before sending response
       await record.populate('employee', 'name email');
 
@@ -108,7 +146,80 @@ router.post(
   }
 );
 
-// @route   GET /api/unloading/stats
+// @route   GET /api/unloading/suggestions
+// @desc    Get autocomplete suggestions for vehicle, vendor, and location
+// @access  Private
+router.get('/suggestions', auth, async (req, res) => {
+  try {
+    const options = await AutocompleteOption.find().select('type value -_id');
+    
+    const suggestions = {
+      vehicle: [],
+      vendor: [],
+      location: []
+    };
+
+    options.forEach(opt => {
+      if (suggestions[opt.type]) {
+        suggestions[opt.type].push(opt.value);
+      }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: suggestions
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   POST /api/unloading/sync-suggestions
+// @desc    Force sync suggestions from all existing records
+// @access  Private (Manager only)
+router.post('/sync-suggestions', auth, authorize('manager'), async (req, res) => {
+  try {
+    const records = await UnloadingRecord.find();
+    console.log(`Syncing suggestions from ${records.length} records...`);
+
+    const options = new Map(); // Use map for local de-duping
+
+    records.forEach(r => {
+      if (r.vehicleNumber) options.set(`vehicle:${r.vehicleNumber.toUpperCase()}`, { type: 'vehicle', value: r.vehicleNumber.toUpperCase() });
+      if (r.vendors) {
+        r.vendors.forEach(v => {
+          if (v.vendorName) options.set(`vendor:${v.vendorName}`, { type: 'vendor', value: v.vendorName });
+          if (v.storageLocation) options.set(`location:${v.storageLocation}`, { type: 'location', value: v.storageLocation });
+        });
+      }
+    });
+
+    const values = Array.from(options.values());
+    if (values.length > 0) {
+      const operations = values.map(opt => ({
+        updateOne: {
+          filter: { type: opt.type, value: opt.value },
+          update: { $set: opt },
+          upsert: true
+        }
+      }));
+      await AutocompleteOption.bulkWrite(operations);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully synced ${values.length} unique suggestions.`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
 // @desc    Get unloading statistics (today, week, month)
 // @access  Private
 router.get('/stats', auth, async (req, res) => {
@@ -160,7 +271,6 @@ router.get('/stats', auth, async (req, res) => {
   }
 });
 
-const User = require('../models/User'); // Import User model
 
 // ... (previous helper functions remains)
 
@@ -350,6 +460,9 @@ router.put(
         },
         { new: true, runValidators: true }
       );
+
+      // Background: Update autocomplete suggestions
+      updateSuggestions(vehicleNumber, parsedVendors);
 
       res.status(200).json({ success: true, data: updatedRecord });
     } catch (error) {

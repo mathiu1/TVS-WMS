@@ -69,6 +69,8 @@ export const unloadingAPI = {
   getStats: (params) => API.get('/unloading/stats', { params }),
   publicSearch: (params) => API.get('/unloading/public/search', { params }),
   publicGetById: (id) => API.get(`/unloading/public/${id}`),
+  getSuggestions: () => API.get('/unloading/suggestions'),
+  syncSuggestions: () => API.post('/unloading/sync-suggestions'),
 };
 
 // ===== ANALYTICS API =====
