@@ -96,19 +96,20 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
     let rawFiles = Array.from(e.target.files);
     const vendor = vendors[index];
 
-    if (vendor.files.length + vendor.previews.filter(p => p.name === 'existing').length + rawFiles.length > 3) {
-      toast.error('Maximum 3 images allowed per vendor.');
-      rawFiles = rawFiles.slice(0, Math.max(0, 3 - (vendor.files.length + vendor.previews.filter(p => p.name === 'existing').length)));
+    if (vendor.files.length + vendor.previews.filter(p => p.name === 'existing').length + rawFiles.length > 6) {
+      toast.error('Maximum 6 images allowed per vendor.');
+      rawFiles = rawFiles.slice(0, Math.max(0, 6 - (vendor.files.length + vendor.previews.filter(p => p.name === 'existing').length)));
       if (rawFiles.length === 0) return;
     }
+
 
     const validFiles = rawFiles.filter((f) => {
       if (!['image/jpeg', 'image/png'].includes(f.type)) {
         toast.error(`${f.name}: Only JPG and PNG allowed`);
         return false;
       }
-      if (f.size > 5 * 1024 * 1024) {
-        toast.error(`${f.name}: Max size is 5MB`);
+      if (f.size > 10 * 1024 * 1024) {
+        toast.error(`${f.name}: Max size is 10MB`);
         return false;
       }
       return true;
@@ -120,11 +121,12 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
 
     try {
       const options = {
-        maxSizeMB: 0.3,
+        maxSizeMB: 0.2,
         maxWidthOrHeight: 1280,
         useWebWorker: true,
-        initialQuality: 0.9
+        initialQuality: 0.8
       };
+
 
       const compressedFiles = await Promise.all(
         validFiles.map(async (file) => {
@@ -163,11 +165,11 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
 
       // Live Edit: Automatically open editor for the first newly added image
       if (compressedFiles.length > 0) {
-        setEditPhoto({ 
-          isOpen: true, 
-          vendorIndex: index, 
-          imageIndex: startIndexForEditing, 
-          file: compressedFiles[0] 
+        setEditPhoto({
+          isOpen: true,
+          vendorIndex: index,
+          imageIndex: startIndexForEditing,
+          file: compressedFiles[0]
         });
       }
     } catch (err) {
@@ -226,7 +228,7 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
     const { vendorIndex, imageIndex } = editPhoto;
     const updatedVendors = [...vendors];
     const vendor = { ...updatedVendors[vendorIndex] };
-    
+
     // Replace file
     const newFiles = [...vendor.files];
     newFiles[imageIndex] = editedFile;
@@ -257,10 +259,10 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
     }
 
     // Ensure all vendor fields have values
-    const missingFields = vendors.some(v => 
-      !v.vendorName.trim() || 
-      !v.storageLocation.trim() || 
-      v.invoiceCount < 1 || 
+    const missingFields = vendors.some(v =>
+      !v.vendorName.trim() ||
+      !v.storageLocation.trim() ||
+      v.invoiceCount < 1 ||
       v.partsCount < 1
     );
 
@@ -444,9 +446,9 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
                   />
                 </div>
                 <div className="col-action-group">
-                  <button 
+                  <button
                     type="button"
-                    className="vendor-row-action-btn" 
+                    className="vendor-row-action-btn"
                     onClick={() => openPhotoSheet(index)}
                     title="Add Photo"
                   >
@@ -542,7 +544,7 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
               <h3>Add Photo</h3>
               <p>Choose an option to attach proof</p>
             </div>
-            
+
             <div className="photo-sheet-options">
               <button className="photo-option-btn" onClick={triggerCamera}>
                 <div className="option-icon camera">
@@ -550,7 +552,7 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
                 </div>
                 <span>Take Photo</span>
               </button>
-              
+
               <button className="photo-option-btn" onClick={triggerGallery}>
                 <div className="option-icon gallery">
                   <ImageIcon size={24} />
@@ -558,7 +560,7 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
                 <span>From Gallery</span>
               </button>
             </div>
-            
+
             <button className="photo-sheet-cancel" onClick={() => setPhotoSheet({ ...photoSheet, isOpen: false })}>
               Cancel
             </button>
@@ -568,48 +570,48 @@ const UnloadingForm = ({ editData = null, onSuccess = null }) => {
 
       {/* Image Editor Modal */}
       {editPhoto.isOpen && (
-        <ImageEditor 
+        <ImageEditor
           imageFile={editPhoto.file}
           onSave={handleSaveEdited}
           onClose={() => setEditPhoto({ isOpen: false, vendorIndex: null, imageIndex: null, file: null })}
         />
       )}
 
-    {/* Success Modal */}
-    {showSuccessModal && (
-      <div className="success-modal-backdrop">
-        <div className="success-modal-content">
-          <div className="success-icon-wrapper">
-            <CheckCircle size={48} />
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="success-modal-backdrop">
+          <div className="success-modal-content">
+            <div className="success-icon-wrapper">
+              <CheckCircle size={48} />
+            </div>
+            <h3>Submission Successful!</h3>
+            <p>The unloading record has been saved. Please note the Unique IDs below.</p>
+
+            <div className="vendor-id-list">
+              {submittedVendors.map((vendor, idx) => (
+                <div key={idx} className="vendor-id-item">
+                  <span className="vendor-id-name">{vendor.vendorName}</span>
+                  <span className="vendor-id-badge">{vendor.vendorId}</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              className="btn btn-primary w-full"
+              style={{ padding: '1rem', borderRadius: '12px', fontWeight: '800' }}
+              onClick={() => {
+                setShowSuccessModal(false);
+                onSuccess && onSuccess();
+                navigate('/records');
+              }}
+            >
+              Done
+            </button>
           </div>
-          <h3>Submission Successful!</h3>
-          <p>The unloading record has been saved. Please note the Unique IDs below.</p>
-          
-          <div className="vendor-id-list">
-            {submittedVendors.map((vendor, idx) => (
-              <div key={idx} className="vendor-id-item">
-                <span className="vendor-id-name">{vendor.vendorName}</span>
-                <span className="vendor-id-badge">{vendor.vendorId}</span>
-              </div>
-            ))}
-          </div>
-          
-          <button 
-            className="btn btn-primary w-full"
-            style={{ padding: '1rem', borderRadius: '12px', fontWeight: '800' }}
-            onClick={() => {
-              setShowSuccessModal(false);
-              onSuccess && onSuccess();
-              navigate('/records');
-            }}
-          >
-            Done
-          </button>
         </div>
-      </div>
-    )}
-  </div>
-);
+      )}
+    </div>
+  );
 };
 
 export default UnloadingForm;

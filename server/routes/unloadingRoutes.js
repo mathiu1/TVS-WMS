@@ -66,7 +66,8 @@ router.post(
   auth,
   authorize('employee', 'manager'),
   function (req, res, next) {
-    const uploadMiddleware = upload.array('images', 10);
+    const uploadMiddleware = upload.array('images', 30);
+
     uploadMiddleware(req, res, function (err) {
       if (err) {
         return res.status(400).json({
@@ -392,7 +393,8 @@ router.put(
   '/:id',
   auth,
   function (req, res, next) {
-    const uploadMiddleware = upload.array('images', 10);
+    const uploadMiddleware = upload.array('images', 30);
+
     uploadMiddleware(req, res, function (err) {
       if (err) {
         return res.status(400).json({

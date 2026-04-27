@@ -276,7 +276,8 @@ const ImageEditor = ({ imageFile, onSave, onClose }) => {
     canvas.toBlob((blob) => {
       const editedFile = new File([blob], imageFile.name, { type: 'image/jpeg' });
       onSave(editedFile);
-    }, 'image/jpeg', 0.95);
+    }, 'image/jpeg', 0.8);
+
   };
 
   const resetZoom = () => {
